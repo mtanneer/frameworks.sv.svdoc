@@ -3,8 +3,8 @@ import tempfile
 import os
 
 from svdoc.fixer import fix_file
-from svdoc.parser import parse_interface, parse_module
-from svdoc.render_md import render, render_interface
+from svdoc.parser import parse_interface, parse_module, parse_package
+from svdoc.render_md import render, render_interface, render_package
 
 
 def test_fix_fills_gaps_and_is_idempotent():
@@ -85,8 +85,42 @@ def test_handshake_interface():
     assert "### `producer`" in text
 
 
+def test_fifo_pkg():
+    pkg = parse_package("spike/example_pkg.sv")
+    assert pkg.name == "fifo_pkg"
+    assert pkg.doc == "@brief Shared types for the FIFO subsystem."
+    assert [t.name for t in pkg.typedefs] == ["fifo_mode_e", "fifo_status_t", "fifo_word_t"]
+
+    mode_e = pkg.typedefs[0]
+    assert mode_e.kind == "enum"
+    assert mode_e.base_type == "logic [1:0]"
+    assert [(v.name, v.value, v.doc) for v in mode_e.values] == [
+        ("MODE_NORMAL", "0", "Standard FIFO behavior"),
+        ("MODE_BYPASS", "1", "Bypass buffering entirely"),
+        ("MODE_FLUSH", "2", "Drain and clear on next cycle"),
+    ]
+
+    status_t = pkg.typedefs[1]
+    assert status_t.kind == "struct"
+    assert [(f.name, f.type, f.doc) for f in status_t.fields] == [
+        ("full", "logic", "FIFO full flag"),
+        ("empty", "logic", "FIFO empty flag"),
+        ("count", "logic [7:0]", "Current occupancy"),
+    ]
+
+    word_t = pkg.typedefs[2]
+    assert word_t.kind == "alias"
+    assert word_t.alias_type == "logic [15:0]"
+    assert word_t.doc == "Single FIFO data word"
+
+    text = render_package(pkg)
+    assert "# Package: `fifo_pkg`" in text
+    assert "| `MODE_FLUSH` | 2 | Drain and clear on next cycle |" in text
+
+
 if __name__ == "__main__":
     test_fifo_example()
     test_fix_fills_gaps_and_is_idempotent()
     test_handshake_interface()
+    test_fifo_pkg()
     print("ok")

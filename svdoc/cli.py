@@ -4,14 +4,20 @@ import pathlib
 import sys
 
 from .fixer import fix_file
-from .ir import InterfaceDoc
+from .ir import InterfaceDoc, ModuleDoc, PackageDoc
 from .parser import parse_file
-from .render_md import render, render_interface
+from .render_md import render, render_interface, render_package
+
+_RENDERERS = {
+    ModuleDoc: render,
+    InterfaceDoc: render_interface,
+    PackageDoc: render_package,
+}
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="svdoc")
-    ap.add_argument("file", help="path to a .sv file containing one module or interface")
+    ap.add_argument("file", help="path to a .sv file containing one module, interface, or package")
     ap.add_argument("--out", choices=["md"], help="write rendered doc to a file instead of stdout")
     ap.add_argument("--fix", action="store_true",
                      help="insert ///< TODO stubs next to undocumented ports/params in place")
@@ -23,7 +29,7 @@ def main(argv=None):
         return
 
     doc = parse_file(args.file)
-    text = render_interface(doc) if isinstance(doc, InterfaceDoc) else render(doc)
+    text = _RENDERERS[type(doc)](doc)
 
     if args.out == "md":
         out_path = pathlib.Path(args.file).with_suffix(".md")

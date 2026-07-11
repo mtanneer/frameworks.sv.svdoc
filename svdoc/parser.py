@@ -6,7 +6,10 @@ from typing import Optional
 
 import pyslang
 
-from .ir import InterfaceDoc, Modport, ModportPortGroup, ModuleDoc, Param, Port, Signal
+from .ir import (
+    EnumValue, InterfaceDoc, Modport, ModportPortGroup, ModuleDoc, PackageDoc,
+    Param, Port, Signal, StructField, Typedef,
+)
 
 _DOC_KINDS = (pyslang.parsing.TriviaKind.BlockComment, pyslang.parsing.TriviaKind.LineComment)
 
@@ -109,14 +112,16 @@ def parse_module(path: str) -> ModuleDoc:
 
 
 def parse_file(path: str):
-    """Parse a .sv file containing a single module or interface, returning
-    whichever of ModuleDoc / InterfaceDoc matches."""
+    """Parse a .sv file containing a single module, interface, or package,
+    returning whichever of ModuleDoc / InterfaceDoc / PackageDoc matches."""
     tree = pyslang.syntax.SyntaxTree.fromFile(path, pyslang.SourceManager())
     if tree.diagnostics:
         raise ValueError(f"parse errors in {path}: {list(tree.diagnostics)}")
-    kind = next(m.kind for m in tree.root.members if hasattr(m, "header"))
+    kind = next(m.kind for m in tree.root.members if hasattr(m, "header") or hasattr(m, "members"))
     if kind == pyslang.syntax.SyntaxKind.InterfaceDeclaration:
         return parse_interface(path)
+    if kind == pyslang.syntax.SyntaxKind.PackageDeclaration:
+        return parse_package(path)
     return parse_module(path)
 
 
@@ -156,5 +161,67 @@ def parse_interface(path: str) -> InterfaceDoc:
                     doc=_trailing_doc(group_next),
                 ))
             doc.modports.append(modport)
+
+    return doc
+
+
+def _parse_enum_values(enum_type) -> list:
+    # members is comma-interleaved (like params/ports) -- filter to just the
+    # declarators so "next item" lookups skip over comma tokens, same fix as
+    # the param/port comma-interleaving bug found in Phase 1's --fix.
+    decls = [n for n in enum_type.members if hasattr(n, "name")]
+    values = []
+    for i, n in enumerate(decls):
+        next_node = decls[i + 1] if i + 1 < len(decls) else enum_type.closeBrace
+        values.append(EnumValue(
+            name=n.name.valueText,
+            value=_type_str(n.initializer.expr) if n.initializer else None,
+            doc=_trailing_doc(next_node),
+        ))
+    return values
+
+
+def _parse_struct_fields(struct_type) -> list:
+    raw = list(struct_type.members)
+    fields = []
+    for i, f in enumerate(raw):
+        next_node = raw[i + 1] if i + 1 < len(raw) else struct_type.closeBrace
+        fields.append(StructField(
+            name=f.declarators[0].name.valueText,
+            type=_type_str(f.type),
+            doc=_trailing_doc(next_node),
+        ))
+    return fields
+
+
+def parse_package(path: str) -> PackageDoc:
+    tree = pyslang.syntax.SyntaxTree.fromFile(path, pyslang.SourceManager())
+    if tree.diagnostics:
+        raise ValueError(f"parse errors in {path}: {list(tree.diagnostics)}")
+
+    pkg = _find_declaration(tree, pyslang.syntax.SyntaxKind.PackageDeclaration)
+    doc = PackageDoc(name=pkg.header.name.valueText, doc=_leading_doc(pkg))
+
+    members = list(pkg.members)
+    for i, m in enumerate(members):
+        if m.kind != pyslang.syntax.SyntaxKind.TypedefDeclaration:
+            continue
+        next_node = members[i + 1] if i + 1 < len(members) else pkg.endmodule
+        if m.type.kind == pyslang.syntax.SyntaxKind.EnumType:
+            doc.typedefs.append(Typedef(
+                name=m.name.valueText, doc=_leading_doc(m), kind="enum",
+                base_type=_type_str(m.type.baseType) if m.type.baseType else None,
+                values=_parse_enum_values(m.type),
+            ))
+        elif m.type.kind == pyslang.syntax.SyntaxKind.StructType:
+            doc.typedefs.append(Typedef(
+                name=m.name.valueText, doc=_leading_doc(m), kind="struct",
+                fields=_parse_struct_fields(m.type),
+            ))
+        else:
+            doc.typedefs.append(Typedef(
+                name=m.name.valueText, doc=_trailing_doc(next_node) or _leading_doc(m),
+                kind="alias", alias_type=_type_str(m.type),
+            ))
 
     return doc

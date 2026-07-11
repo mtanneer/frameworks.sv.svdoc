@@ -56,3 +56,35 @@ class InterfaceDoc:
     ports: List[Port] = field(default_factory=list)
     signals: List[Signal] = field(default_factory=list)
     modports: List[Modport] = field(default_factory=list)
+
+
+@dataclass
+class EnumValue:
+    name: str
+    value: Optional[str]
+    doc: Optional[str]
+
+
+@dataclass
+class StructField:
+    name: str
+    type: str
+    doc: Optional[str]
+
+
+@dataclass
+class Typedef:
+    name: str
+    doc: Optional[str]
+    kind: str  # "enum" | "struct" | "alias"
+    base_type: Optional[str] = None       # enum: underlying type (e.g. "logic [1:0]")
+    alias_type: Optional[str] = None      # alias: the aliased type (e.g. "logic [15:0]")
+    values: List[EnumValue] = field(default_factory=list)   # enum only
+    fields: List[StructField] = field(default_factory=list)  # struct only
+
+
+@dataclass
+class PackageDoc:
+    name: str
+    doc: Optional[str]
+    typedefs: List[Typedef] = field(default_factory=list)
