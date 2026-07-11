@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "svdoc"
+version = "0.1.0"
+description = "pydoc-style documentation generator for SystemVerilog RTL"
+requires-python = ">=3.9"
+dependencies = ["pyslang"]
+
+[project.scripts]
+svdoc = "svdoc.cli:main"
+
+[tool.setuptools]
+packages = ["svdoc"]
