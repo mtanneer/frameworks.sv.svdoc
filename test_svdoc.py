@@ -5,6 +5,7 @@ import os
 from svdoc.fixer import fix_file
 from svdoc.parser import parse_interface, parse_module, parse_package, resolve_types
 from svdoc.render_md import render, render_interface, render_package
+from svdoc.render_html import render as render_html
 
 
 def test_fix_fills_gaps_and_is_idempotent():
@@ -156,6 +157,19 @@ def test_resolve_types_cross_file():
     text = render(mod)
     assert "`fifo_pkg::fifo_mode_e`" in text
 
+    html = render_html(mod)
+    assert '<a href="fifo_pkg.html#fifo_mode_e">fifo_pkg::fifo_mode_e</a>' in html
+    assert "<code>clk</code>" in html  # unresolved port still renders plainly
+
+
+def test_html_escapes_doc_text():
+    mod = parse_module("spike/example.sv")
+    mod.doc = "uses <script>alert(1)</script> & other stuff"
+    html = render_html(mod)
+    assert "<script>" not in html
+    assert "&lt;script&gt;" in html
+    assert "&amp;" in html
+
 
 if __name__ == "__main__":
     test_fifo_example()
@@ -164,4 +178,5 @@ if __name__ == "__main__":
     test_fifo_pkg()
     test_fifo_util_pkg_subroutines()
     test_resolve_types_cross_file()
+    test_html_escapes_doc_text()
     print("ok")

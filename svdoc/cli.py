@@ -1,18 +1,18 @@
-"""svdoc CLI (v1): `svdoc <file.sv>` prints to terminal; `--out md` writes a .md file."""
+"""svdoc CLI (v1): `svdoc <file.sv>` prints to terminal; `--out md`/`--out html` writes a file."""
 import argparse
 import pathlib
 import sys
 
+from . import render_html, render_md
 from .fixer import fix_file
 from .ir import InterfaceDoc, ModuleDoc, PackageDoc
 from .parser import parse_file, resolve_types
-from .render_md import render, render_interface, render_package
 
 _RENDERERS = {
-    ModuleDoc: render,
-    InterfaceDoc: render_interface,
-    PackageDoc: render_package,
+    "md": {ModuleDoc: render_md.render, InterfaceDoc: render_md.render_interface, PackageDoc: render_md.render_package},
+    "html": {ModuleDoc: render_html.render, InterfaceDoc: render_html.render_interface, PackageDoc: render_html.render_package},
 }
+_EXTENSIONS = {"md": ".md", "html": ".html"}
 
 
 def main(argv=None):
@@ -21,7 +21,8 @@ def main(argv=None):
     ap.add_argument("more_files", nargs="*",
                      help="additional .sv files (e.g. packages it depends on) used only to "
                           "resolve cross-file types -- not documented themselves")
-    ap.add_argument("--out", choices=["md"], help="write rendered doc to a file instead of stdout")
+    ap.add_argument("--out", choices=["md", "html"],
+                     help="write rendered doc to a file in this format instead of printing to stdout")
     ap.add_argument("--fix", action="store_true",
                      help="insert ///< TODO stubs next to undocumented ports/params in place")
     args = ap.parse_args(argv)
@@ -34,14 +35,14 @@ def main(argv=None):
     doc = parse_file(args.file)
     if args.more_files and isinstance(doc, ModuleDoc):
         resolve_types(doc, [args.file] + args.more_files)
-    text = _RENDERERS[type(doc)](doc)
 
-    if args.out == "md":
-        out_path = pathlib.Path(args.file).with_suffix(".md")
+    if args.out:
+        text = _RENDERERS[args.out][type(doc)](doc)
+        out_path = pathlib.Path(args.file).with_suffix(_EXTENSIONS[args.out])
         out_path.write_text(text)
         print(f"wrote {out_path}")
     else:
-        print(text)
+        print(_RENDERERS["md"][type(doc)](doc))
 
 
 if __name__ == "__main__":
