@@ -36,7 +36,11 @@ def _trailing_doc(next_node) -> Optional[str]:
 
 
 def parse_module(path: str) -> ModuleDoc:
-    tree = pyslang.syntax.SyntaxTree.fromFile(path)
+    # fromFile's default SourceManager caches file contents by path across
+    # calls in the same process, so a fresh SourceManager avoids seeing a
+    # stale read of a file that was modified earlier in this process
+    # (e.g. by --fix, or in tests that fix then re-parse the same path).
+    tree = pyslang.syntax.SyntaxTree.fromFile(path, pyslang.SourceManager())
     if tree.diagnostics:
         raise ValueError(f"parse errors in {path}: {list(tree.diagnostics)}")
 

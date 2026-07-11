@@ -1,6 +1,41 @@
-"""Minimal smoke test for the Phase 1 IR/renderer pipeline."""
+"""Minimal smoke test for the Phase 1 IR/renderer pipeline and --fix."""
+import tempfile
+import os
+
+from svdoc.fixer import fix_file
 from svdoc.parser import parse_module
 from svdoc.render_md import render
+
+
+def test_fix_fills_gaps_and_is_idempotent():
+    src = """\
+module fifo #(
+    parameter int DEPTH = 16,
+    parameter int WIDTH = 8    ///< Bit width of each data word
+) (
+    input  logic             clk,   ///< Clock
+    input  logic             rst_n,
+    output logic              empty
+);
+
+endmodule
+"""
+    fd, path = tempfile.mkstemp(suffix=".sv")
+    os.write(fd, src.encode())
+    os.close(fd)
+    try:
+        assert fix_file(path) is True
+        mod = parse_module(path)
+        assert mod.doc == "@brief TODO"
+        assert mod.params[0].doc == "TODO"
+        assert mod.params[1].doc == "Bit width of each data word"
+        assert mod.ports[0].doc == "Clock"
+        assert mod.ports[1].doc == "TODO"
+        assert mod.ports[2].doc == "TODO"
+
+        assert fix_file(path) is False  # idempotent, already fully documented
+    finally:
+        os.remove(path)
 
 
 def test_fifo_example():
@@ -27,4 +62,5 @@ def test_fifo_example():
 
 if __name__ == "__main__":
     test_fifo_example()
+    test_fix_fills_gaps_and_is_idempotent()
     print("ok")

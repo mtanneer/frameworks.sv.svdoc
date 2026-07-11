@@ -3,6 +3,7 @@ import argparse
 import pathlib
 import sys
 
+from .fixer import fix_file
 from .parser import parse_module
 from .render_md import render
 
@@ -11,7 +12,14 @@ def main(argv=None):
     ap = argparse.ArgumentParser(prog="svdoc")
     ap.add_argument("file", help="path to a .sv file containing one module")
     ap.add_argument("--out", choices=["md"], help="write rendered doc to a file instead of stdout")
+    ap.add_argument("--fix", action="store_true",
+                     help="insert ///< TODO stubs next to undocumented ports/params in place")
     args = ap.parse_args(argv)
+
+    if args.fix:
+        changed = fix_file(args.file)
+        print(f"{'fixed' if changed else 'no changes needed for'} {args.file}")
+        return
 
     mod = parse_module(args.file)
     text = render(mod)
