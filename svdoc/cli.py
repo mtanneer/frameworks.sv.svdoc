@@ -5,7 +5,7 @@ import sys
 
 from .fixer import fix_file
 from .ir import InterfaceDoc, ModuleDoc, PackageDoc
-from .parser import parse_file
+from .parser import parse_file, resolve_types
 from .render_md import render, render_interface, render_package
 
 _RENDERERS = {
@@ -17,7 +17,10 @@ _RENDERERS = {
 
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="svdoc")
-    ap.add_argument("file", help="path to a .sv file containing one module, interface, or package")
+    ap.add_argument("file", help="path to the .sv file containing the module/interface/package to document")
+    ap.add_argument("more_files", nargs="*",
+                     help="additional .sv files (e.g. packages it depends on) used only to "
+                          "resolve cross-file types -- not documented themselves")
     ap.add_argument("--out", choices=["md"], help="write rendered doc to a file instead of stdout")
     ap.add_argument("--fix", action="store_true",
                      help="insert ///< TODO stubs next to undocumented ports/params in place")
@@ -29,6 +32,8 @@ def main(argv=None):
         return
 
     doc = parse_file(args.file)
+    if args.more_files and isinstance(doc, ModuleDoc):
+        resolve_types(doc, [args.file] + args.more_files)
     text = _RENDERERS[type(doc)](doc)
 
     if args.out == "md":

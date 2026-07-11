@@ -125,6 +125,34 @@ def parse_file(path: str):
     return parse_module(path)
 
 
+def resolve_types(doc, paths: list) -> None:
+    """Cross-file type resolution: given a ModuleDoc/InterfaceDoc already
+    parsed from a single file, and the full list of files it should be
+    elaborated alongside, patch Port/Param.type_ref with the fully-qualified
+    "package::type" name for any port/param whose type resolves to a type
+    defined in a package (only possible with the other files present).
+    Mutates doc in place; a no-op if the construct isn't found as a
+    top-level instance (interfaces aren't instantiated on their own, so this
+    only actually resolves anything useful for modules today)."""
+    sm = pyslang.SourceManager()
+    comp = pyslang.ast.Compilation()
+    for p in paths:
+        tree = pyslang.syntax.SyntaxTree.fromFile(p, sm)
+        if tree.diagnostics:
+            raise ValueError(f"parse errors in {p}: {list(tree.diagnostics)}")
+        comp.addSyntaxTree(tree)
+
+    inst = next((i for i in comp.getRoot().topInstances if i.name == doc.name), None)
+    if inst is None:
+        return
+
+    resolved = {p.name: str(p.type) for p in inst.body.portList}
+    for port in doc.ports:
+        type_str = resolved.get(port.name)
+        if type_str and "::" in type_str:
+            port.type_ref = type_str
+
+
 def parse_interface(path: str) -> InterfaceDoc:
     tree = pyslang.syntax.SyntaxTree.fromFile(path, pyslang.SourceManager())
     if tree.diagnostics:

@@ -9,6 +9,7 @@ class Param:
     type: str
     default: Optional[str]
     doc: Optional[str]
+    type_ref: Optional[str] = None  # fully-qualified "package::type" if resolved cross-file
 
 
 @dataclass
@@ -17,6 +18,7 @@ class Port:
     direction: str
     type: str
     doc: Optional[str]
+    type_ref: Optional[str] = None  # fully-qualified "package::type" if resolved cross-file
 
 
 @dataclass

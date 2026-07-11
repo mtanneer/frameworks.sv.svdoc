@@ -3,7 +3,7 @@ import tempfile
 import os
 
 from svdoc.fixer import fix_file
-from svdoc.parser import parse_interface, parse_module, parse_package
+from svdoc.parser import parse_interface, parse_module, parse_package, resolve_types
 from svdoc.render_md import render, render_interface, render_package
 
 
@@ -118,9 +118,23 @@ def test_fifo_pkg():
     assert "| `MODE_FLUSH` | 2 | Drain and clear on next cycle |" in text
 
 
+def test_resolve_types_cross_file():
+    mod = parse_module("spike/example_multi_top.sv")
+    assert [p.type_ref for p in mod.ports] == [None, None, None]  # unresolved before
+
+    resolve_types(mod, ["spike/example_multi_top.sv", "spike/example_pkg.sv"])
+    assert mod.ports[0].type_ref is None  # clk: plain logic, nothing to resolve
+    assert mod.ports[1].type_ref == "fifo_pkg::fifo_mode_e"
+    assert mod.ports[2].type_ref == "fifo_pkg::fifo_status_t"
+
+    text = render(mod)
+    assert "`fifo_pkg::fifo_mode_e`" in text
+
+
 if __name__ == "__main__":
     test_fifo_example()
     test_fix_fills_gaps_and_is_idempotent()
     test_handshake_interface()
     test_fifo_pkg()
+    test_resolve_types_cross_file()
     print("ok")

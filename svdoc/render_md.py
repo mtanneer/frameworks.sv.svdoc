@@ -17,7 +17,7 @@ def _ports_section(ports) -> list:
         return []
     lines = ["## Ports", "", "| Name | Direction | Type | Description |", "|---|---|---|---|"]
     for p in ports:
-        lines.append(f"| `{p.name}` | {p.direction} | `{p.type}` | {p.doc or ''} |")
+        lines.append(f"| `{p.name}` | {p.direction} | `{p.type_ref or p.type}` | {p.doc or ''} |")
     lines.append("")
     return lines
 
