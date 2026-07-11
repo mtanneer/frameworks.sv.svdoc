@@ -1,4 +1,5 @@
 """Minimal smoke test for the Phase 1 IR/renderer pipeline and --fix."""
+
 import tempfile
 import os
 
@@ -49,7 +50,14 @@ def test_fifo_example():
     assert mod.params[0].doc == "Number of entries in the FIFO"
 
     assert [p.name for p in mod.ports] == [
-        "clk", "rst_n", "wr_en", "wr_data", "full", "rd_en", "rd_data", "empty",
+        "clk",
+        "rst_n",
+        "wr_en",
+        "wr_data",
+        "full",
+        "rd_en",
+        "rd_data",
+        "empty",
     ]
     wr_data = mod.ports[3]
     assert wr_data.direction == "input"
@@ -90,7 +98,11 @@ def test_fifo_pkg():
     pkg = parse_package("spike/example_pkg.sv")
     assert pkg.name == "fifo_pkg"
     assert pkg.doc == "@brief Shared types for the FIFO subsystem."
-    assert [t.name for t in pkg.typedefs] == ["fifo_mode_e", "fifo_status_t", "fifo_word_t"]
+    assert [t.name for t in pkg.typedefs] == [
+        "fifo_mode_e",
+        "fifo_status_t",
+        "fifo_word_t",
+    ]
 
     mode_e = pkg.typedefs[0]
     assert mode_e.kind == "enum"

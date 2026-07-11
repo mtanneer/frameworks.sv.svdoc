@@ -1,17 +1,31 @@
 """AST walker: pyslang SyntaxTree -> Doc IR. See PLAN.md Phase 1 (modules) and
 Phase 2 (interfaces/modports).
 """
+
 import re
 from typing import Optional
 
 import pyslang
 
 from .ir import (
-    EnumValue, InterfaceDoc, Modport, ModportPortGroup, ModuleDoc, PackageDoc,
-    Param, Port, Signal, StructField, Subroutine, Typedef,
+    EnumValue,
+    InterfaceDoc,
+    Modport,
+    ModportPortGroup,
+    ModuleDoc,
+    PackageDoc,
+    Param,
+    Port,
+    Signal,
+    StructField,
+    Subroutine,
+    Typedef,
 )
 
-_DOC_KINDS = (pyslang.parsing.TriviaKind.BlockComment, pyslang.parsing.TriviaKind.LineComment)
+_DOC_KINDS = (
+    pyslang.parsing.TriviaKind.BlockComment,
+    pyslang.parsing.TriviaKind.LineComment,
+)
 
 
 def _clean(text: str) -> str:
@@ -45,7 +59,9 @@ def _type_str(node) -> str:
 def _trailing_doc(next_node) -> Optional[str]:
     """Doxygen ///< trailing comments attach as leading trivia on the *next*
     item in the list (see Phase 0 spike findings in PLAN.md)."""
-    tok = next_node.getFirstToken() if hasattr(next_node, "getFirstToken") else next_node
+    tok = (
+        next_node.getFirstToken() if hasattr(next_node, "getFirstToken") else next_node
+    )
     for t in tok.trivia:
         if t.kind == pyslang.parsing.TriviaKind.LineComment:
             return _clean(t.getRawText())
@@ -57,18 +73,23 @@ def _parse_params(header) -> list:
         return []
     params = []
     decls = [
-        d for d in header.parameters.declarations
+        d
+        for d in header.parameters.declarations
         if d.kind == pyslang.syntax.SyntaxKind.ParameterDeclaration
     ]
     for i, d in enumerate(decls):
         next_node = decls[i + 1] if i + 1 < len(decls) else header.parameters.closeParen
         declarator = d.declarators[0]
-        params.append(Param(
-            name=declarator.name.valueText,
-            type=_type_str(d.type),
-            default=_type_str(declarator.initializer.expr) if declarator.initializer else None,
-            doc=_trailing_doc(next_node),
-        ))
+        params.append(
+            Param(
+                name=declarator.name.valueText,
+                type=_type_str(d.type),
+                default=_type_str(declarator.initializer.expr)
+                if declarator.initializer
+                else None,
+                doc=_trailing_doc(next_node),
+            )
+        )
     return params
 
 
@@ -78,13 +99,17 @@ def _parse_ports(header) -> list:
     ports = []
     port_decls = [p for p in header.ports.ports if hasattr(p, "declarator")]
     for i, p in enumerate(port_decls):
-        next_node = port_decls[i + 1] if i + 1 < len(port_decls) else header.ports.closeParen
-        ports.append(Port(
-            name=p.declarator.name.valueText,
-            direction=p.header.direction.valueText,
-            type=_type_str(p.header.dataType),
-            doc=_trailing_doc(next_node),
-        ))
+        next_node = (
+            port_decls[i + 1] if i + 1 < len(port_decls) else header.ports.closeParen
+        )
+        ports.append(
+            Port(
+                name=p.declarator.name.valueText,
+                direction=p.header.direction.valueText,
+                type=_type_str(p.header.dataType),
+                doc=_trailing_doc(next_node),
+            )
+        )
     return ports
 
 
@@ -93,6 +118,13 @@ def _find_declaration(tree, kind):
 
 
 def parse_module(path: str) -> ModuleDoc:
+    """Parse a ``.sv`` file containing a single module declaration.
+
+    :param path: Path to the ``.sv`` file. Only the first module found in the
+        file is parsed.
+    :returns: The module's :class:`~svdoc.ir.ModuleDoc`.
+    :raises ValueError: If the file fails to parse cleanly.
+    """
     # fromFile's default SourceManager caches file contents by path across
     # calls in the same process, so a fresh SourceManager avoids seeing a
     # stale read of a file that was modified earlier in this process
@@ -112,12 +144,25 @@ def parse_module(path: str) -> ModuleDoc:
 
 
 def parse_file(path: str):
-    """Parse a .sv file containing a single module, interface, or package,
-    returning whichever of ModuleDoc / InterfaceDoc / PackageDoc matches."""
+    """Parse a ``.sv`` file containing a single module, interface, or package.
+
+    Dispatches to :func:`parse_module`, :func:`parse_interface`, or
+    :func:`parse_package` based on the syntax kind of the first top-level
+    declaration found.
+
+    :param path: Path to the ``.sv`` file.
+    :returns: A :class:`~svdoc.ir.ModuleDoc`, :class:`~svdoc.ir.InterfaceDoc`,
+        or :class:`~svdoc.ir.PackageDoc`, matching whichever construct was found.
+    :raises ValueError: If the file fails to parse cleanly.
+    """
     tree = pyslang.syntax.SyntaxTree.fromFile(path, pyslang.SourceManager())
     if tree.diagnostics:
         raise ValueError(f"parse errors in {path}: {list(tree.diagnostics)}")
-    kind = next(m.kind for m in tree.root.members if hasattr(m, "header") or hasattr(m, "members"))
+    kind = next(
+        m.kind
+        for m in tree.root.members
+        if hasattr(m, "header") or hasattr(m, "members")
+    )
     if kind == pyslang.syntax.SyntaxKind.InterfaceDeclaration:
         return parse_interface(path)
     if kind == pyslang.syntax.SyntaxKind.PackageDeclaration:
@@ -126,14 +171,25 @@ def parse_file(path: str):
 
 
 def resolve_types(doc, paths: list) -> None:
-    """Cross-file type resolution: given a ModuleDoc/InterfaceDoc already
-    parsed from a single file, and the full list of files it should be
-    elaborated alongside, patch Port/Param.type_ref with the fully-qualified
-    "package::type" name for any port/param whose type resolves to a type
-    defined in a package (only possible with the other files present).
-    Mutates doc in place; a no-op if the construct isn't found as a
-    top-level instance (interfaces aren't instantiated on their own, so this
-    only actually resolves anything useful for modules today)."""
+    """Resolve cross-file port types by elaborating a full ``Compilation``.
+
+    Given a :class:`~svdoc.ir.ModuleDoc` (or :class:`~svdoc.ir.InterfaceDoc`)
+    already parsed from a single file via :func:`parse_module` /
+    :func:`parse_file`, and the full list of files it should be elaborated
+    alongside (e.g. packages it imports types from), patches each
+    :class:`~svdoc.ir.Port`'s ``type_ref`` with the fully-qualified
+    ``"package::type"`` name for any port whose type resolves to a type
+    defined in another file. Mutates ``doc`` in place.
+
+    Only meaningful for modules today: a module becomes an elaborated
+    top-level instance, but a bare interface does not, so this is a no-op
+    when ``doc.name`` can't be found among the compilation's top instances.
+
+    :param doc: An already-parsed module (or interface) doc to patch in place.
+    :param paths: All ``.sv`` files needed to elaborate ``doc``, including the
+        file it was originally parsed from.
+    :raises ValueError: If any of the given files fails to parse cleanly.
+    """
     sm = pyslang.SourceManager()
     comp = pyslang.ast.Compilation()
     for p in paths:
@@ -154,6 +210,14 @@ def resolve_types(doc, paths: list) -> None:
 
 
 def parse_interface(path: str) -> InterfaceDoc:
+    """Parse a ``.sv`` file containing a single interface declaration.
+
+    :param path: Path to the ``.sv`` file. Only the first interface found in
+        the file is parsed.
+    :returns: The interface's :class:`~svdoc.ir.InterfaceDoc`, including its
+        signals and modports.
+    :raises ValueError: If the file fails to parse cleanly.
+    """
     tree = pyslang.syntax.SyntaxTree.fromFile(path, pyslang.SourceManager())
     if tree.diagnostics:
         raise ValueError(f"parse errors in {path}: {list(tree.diagnostics)}")
@@ -172,22 +236,30 @@ def parse_interface(path: str) -> InterfaceDoc:
         next_node = members[i + 1] if i + 1 < len(members) else iface.endmodule
         if m.kind == pyslang.syntax.SyntaxKind.DataDeclaration:
             declarator = m.declarators[0]
-            doc.signals.append(Signal(
-                name=declarator.name.valueText,
-                type=_type_str(m.type),
-                doc=_trailing_doc(next_node),
-            ))
+            doc.signals.append(
+                Signal(
+                    name=declarator.name.valueText,
+                    type=_type_str(m.type),
+                    doc=_trailing_doc(next_node),
+                )
+            )
         elif m.kind == pyslang.syntax.SyntaxKind.ModportDeclaration:
             item = m.items[0]
             modport = Modport(name=item.name.valueText, doc=_leading_doc(m))
             raw_groups = [g for g in item.ports.ports if hasattr(g, "direction")]
             for j, g in enumerate(raw_groups):
-                group_next = raw_groups[j + 1] if j + 1 < len(raw_groups) else item.ports.closeParen
-                modport.port_groups.append(ModportPortGroup(
-                    direction=g.direction.valueText,
-                    signals=[p.name.valueText for p in g.ports],
-                    doc=_trailing_doc(group_next),
-                ))
+                group_next = (
+                    raw_groups[j + 1]
+                    if j + 1 < len(raw_groups)
+                    else item.ports.closeParen
+                )
+                modport.port_groups.append(
+                    ModportPortGroup(
+                        direction=g.direction.valueText,
+                        signals=[p.name.valueText for p in g.ports],
+                        doc=_trailing_doc(group_next),
+                    )
+                )
             doc.modports.append(modport)
 
     return doc
@@ -201,11 +273,13 @@ def _parse_enum_values(enum_type) -> list:
     values = []
     for i, n in enumerate(decls):
         next_node = decls[i + 1] if i + 1 < len(decls) else enum_type.closeBrace
-        values.append(EnumValue(
-            name=n.name.valueText,
-            value=_type_str(n.initializer.expr) if n.initializer else None,
-            doc=_trailing_doc(next_node),
-        ))
+        values.append(
+            EnumValue(
+                name=n.name.valueText,
+                value=_type_str(n.initializer.expr) if n.initializer else None,
+                doc=_trailing_doc(next_node),
+            )
+        )
     return values
 
 
@@ -214,11 +288,13 @@ def _parse_struct_fields(struct_type) -> list:
     fields = []
     for i, f in enumerate(raw):
         next_node = raw[i + 1] if i + 1 < len(raw) else struct_type.closeBrace
-        fields.append(StructField(
-            name=f.declarators[0].name.valueText,
-            type=_type_str(f.type),
-            doc=_trailing_doc(next_node),
-        ))
+        fields.append(
+            StructField(
+                name=f.declarators[0].name.valueText,
+                type=_type_str(f.type),
+                doc=_trailing_doc(next_node),
+            )
+        )
     return fields
 
 
@@ -231,12 +307,14 @@ def _parse_subroutine_args(port_list) -> list:
     args = []
     for i, p in enumerate(decls):
         next_node = decls[i + 1] if i + 1 < len(decls) else port_list.closeParen
-        args.append(Port(
-            name=p.declarator.name.valueText,
-            direction=p.direction.valueText if p.direction else "input",
-            type=_type_str(p.dataType),
-            doc=_trailing_doc(next_node),
-        ))
+        args.append(
+            Port(
+                name=p.declarator.name.valueText,
+                direction=p.direction.valueText if p.direction else "input",
+                type=_type_str(p.dataType),
+                doc=_trailing_doc(next_node),
+            )
+        )
     return args
 
 
@@ -253,6 +331,14 @@ def _parse_subroutine(m, kind: str) -> Subroutine:
 
 
 def parse_package(path: str) -> PackageDoc:
+    """Parse a ``.sv`` file containing a single package declaration.
+
+    :param path: Path to the ``.sv`` file. Only the first package found in
+        the file is parsed.
+    :returns: The package's :class:`~svdoc.ir.PackageDoc`, including its
+        typedefs (enums, structs, aliases) and subroutines (functions, tasks).
+    :raises ValueError: If the file fails to parse cleanly.
+    """
     tree = pyslang.syntax.SyntaxTree.fromFile(path, pyslang.SourceManager())
     if tree.diagnostics:
         raise ValueError(f"parse errors in {path}: {list(tree.diagnostics)}")
@@ -269,20 +355,34 @@ def parse_package(path: str) -> PackageDoc:
             doc.subroutines.append(_parse_subroutine(m, "task"))
         elif m.kind == pyslang.syntax.SyntaxKind.TypedefDeclaration:
             if m.type.kind == pyslang.syntax.SyntaxKind.EnumType:
-                doc.typedefs.append(Typedef(
-                    name=m.name.valueText, doc=_leading_doc(m), kind="enum",
-                    base_type=_type_str(m.type.baseType) if m.type.baseType else None,
-                    values=_parse_enum_values(m.type),
-                ))
+                doc.typedefs.append(
+                    Typedef(
+                        name=m.name.valueText,
+                        doc=_leading_doc(m),
+                        kind="enum",
+                        base_type=_type_str(m.type.baseType)
+                        if m.type.baseType
+                        else None,
+                        values=_parse_enum_values(m.type),
+                    )
+                )
             elif m.type.kind == pyslang.syntax.SyntaxKind.StructType:
-                doc.typedefs.append(Typedef(
-                    name=m.name.valueText, doc=_leading_doc(m), kind="struct",
-                    fields=_parse_struct_fields(m.type),
-                ))
+                doc.typedefs.append(
+                    Typedef(
+                        name=m.name.valueText,
+                        doc=_leading_doc(m),
+                        kind="struct",
+                        fields=_parse_struct_fields(m.type),
+                    )
+                )
             else:
-                doc.typedefs.append(Typedef(
-                    name=m.name.valueText, doc=_trailing_doc(next_node) or _leading_doc(m),
-                    kind="alias", alias_type=_type_str(m.type),
-                ))
+                doc.typedefs.append(
+                    Typedef(
+                        name=m.name.valueText,
+                        doc=_trailing_doc(next_node) or _leading_doc(m),
+                        kind="alias",
+                        alias_type=_type_str(m.type),
+                    )
+                )
 
     return doc

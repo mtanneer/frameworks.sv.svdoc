@@ -1,13 +1,21 @@
 """Markdown renderer: Doc IR -> Obsidian-friendly .md string."""
+
 from .ir import InterfaceDoc, ModuleDoc, PackageDoc
 
 
 def _params_section(params) -> list:
     if not params:
         return []
-    lines = ["## Parameters", "", "| Name | Type | Default | Description |", "|---|---|---|---|"]
+    lines = [
+        "## Parameters",
+        "",
+        "| Name | Type | Default | Description |",
+        "|---|---|---|---|",
+    ]
     for p in params:
-        lines.append(f"| `{p.name}` | `{p.type}` | `{p.default or ''}` | {p.doc or ''} |")
+        lines.append(
+            f"| `{p.name}` | `{p.type}` | `{p.default or ''}` | {p.doc or ''} |"
+        )
     lines.append("")
     return lines
 
@@ -15,14 +23,22 @@ def _params_section(params) -> list:
 def _ports_section(ports) -> list:
     if not ports:
         return []
-    lines = ["## Ports", "", "| Name | Direction | Type | Description |", "|---|---|---|---|"]
+    lines = [
+        "## Ports",
+        "",
+        "| Name | Direction | Type | Description |",
+        "|---|---|---|---|",
+    ]
     for p in ports:
-        lines.append(f"| `{p.name}` | {p.direction} | `{p.type_ref or p.type}` | {p.doc or ''} |")
+        lines.append(
+            f"| `{p.name}` | {p.direction} | `{p.type_ref or p.type}` | {p.doc or ''} |"
+        )
     lines.append("")
     return lines
 
 
 def render(mod: ModuleDoc) -> str:
+    """Render a :class:`~svdoc.ir.ModuleDoc` to an Obsidian-friendly Markdown string."""
     lines = [f"# Module: `{mod.name}`", ""]
     if mod.doc:
         lines += [mod.doc, ""]
@@ -32,6 +48,7 @@ def render(mod: ModuleDoc) -> str:
 
 
 def render_interface(iface: InterfaceDoc) -> str:
+    """Render an :class:`~svdoc.ir.InterfaceDoc` to an Obsidian-friendly Markdown string."""
     lines = [f"# Interface: `{iface.name}`", ""]
     if iface.doc:
         lines += [iface.doc, ""]
@@ -53,13 +70,16 @@ def render_interface(iface: InterfaceDoc) -> str:
                 lines += [mp.doc, ""]
             lines += ["| Direction | Signals | Description |", "|---|---|---|"]
             for g in mp.port_groups:
-                lines.append(f"| {g.direction} | {', '.join(f'`{s}`' for s in g.signals)} | {g.doc or ''} |")
+                lines.append(
+                    f"| {g.direction} | {', '.join(f'`{s}`' for s in g.signals)} | {g.doc or ''} |"
+                )
             lines.append("")
 
     return "\n".join(lines)
 
 
 def render_package(pkg: PackageDoc) -> str:
+    """Render a :class:`~svdoc.ir.PackageDoc` to an Obsidian-friendly Markdown string."""
     lines = [f"# Package: `{pkg.name}`", ""]
     if pkg.doc:
         lines += [pkg.doc, ""]
@@ -91,13 +111,17 @@ def render_package(pkg: PackageDoc) -> str:
         lines.append("")
         if s.doc:
             lines += [s.doc, ""]
-        header = f"Function returning `{s.return_type}`" if s.kind == "function" else "Task"
+        header = (
+            f"Function returning `{s.return_type}`" if s.kind == "function" else "Task"
+        )
         lines.append(header)
         lines.append("")
         if s.args:
             lines += ["| Name | Direction | Type | Description |", "|---|---|---|---|"]
             for a in s.args:
-                lines.append(f"| `{a.name}` | {a.direction} | `{a.type}` | {a.doc or ''} |")
+                lines.append(
+                    f"| `{a.name}` | {a.direction} | `{a.type}` | {a.doc or ''} |"
+                )
             lines.append("")
 
     return "\n".join(lines)

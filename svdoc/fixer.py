@@ -2,6 +2,7 @@
 `/** @brief TODO */` stub above an undocumented module, in place. Mirrors
 `ruff --fix` — scaffolds missing docs rather than guessing their content.
 """
+
 import pyslang
 
 from .parser import _leading_doc, _trailing_doc
@@ -14,7 +15,18 @@ def _end_offset(node) -> int:
 
 
 def fix_file(path: str) -> bool:
-    """Returns True if the file was modified."""
+    """Scaffold missing doc comments in place, in ``path``, and save the result.
+
+    Inserts ``///< TODO`` next to any undocumented port/parameter, and a
+    ``/** @brief TODO */`` stub above the module/interface/package itself if
+    it has no doc comment. Idempotent: re-running on an already-documented
+    file makes no changes.
+
+    :param path: Path to the ``.sv`` file to fix in place.
+    :returns: ``True`` if the file was modified, ``False`` if it was already
+        fully documented.
+    :raises ValueError: If the file fails to parse cleanly.
+    """
     tree = pyslang.syntax.SyntaxTree.fromFile(path, pyslang.SourceManager())
     if tree.diagnostics:
         raise ValueError(f"parse errors in {path}: {list(tree.diagnostics)}")
@@ -43,7 +55,11 @@ def fix_file(path: str) -> bool:
             # AFTER its separator (see parser._trailing_doc) -- for the last
             # item there's no comma, so the lookup and insertion point are
             # both the item itself, right before the closing paren.
-            lookup = raw[i + 2] if has_comma and i + 2 < len(raw) else header.parameters.closeParen
+            lookup = (
+                raw[i + 2]
+                if has_comma and i + 2 < len(raw)
+                else header.parameters.closeParen
+            )
             if _trailing_doc(lookup) is None:
                 offset = _end_offset(raw[i + 1]) if has_comma else _end_offset(node)
                 insertions.append((offset, "  ///< TODO"))
@@ -54,7 +70,11 @@ def fix_file(path: str) -> bool:
             if not hasattr(node, "declarator"):
                 continue
             has_comma = i + 1 < len(raw)
-            lookup = raw[i + 2] if has_comma and i + 2 < len(raw) else header.ports.closeParen
+            lookup = (
+                raw[i + 2]
+                if has_comma and i + 2 < len(raw)
+                else header.ports.closeParen
+            )
             if _trailing_doc(lookup) is None:
                 offset = _end_offset(raw[i + 1]) if has_comma else _end_offset(node)
                 insertions.append((offset, "  ///< TODO"))
