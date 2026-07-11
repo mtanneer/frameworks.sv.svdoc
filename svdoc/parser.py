@@ -1,10 +1,12 @@
-"""AST walker: pyslang SyntaxTree -> Doc IR (module-only, Phase 1)."""
+"""AST walker: pyslang SyntaxTree -> Doc IR. See PLAN.md Phase 1 (modules) and
+Phase 2 (interfaces/modports).
+"""
 import re
 from typing import Optional
 
 import pyslang
 
-from .ir import ModuleDoc, Param, Port
+from .ir import InterfaceDoc, Modport, ModportPortGroup, ModuleDoc, Param, Port, Signal
 
 _DOC_KINDS = (pyslang.parsing.TriviaKind.BlockComment, pyslang.parsing.TriviaKind.LineComment)
 
@@ -19,10 +21,22 @@ def _clean(text: str) -> str:
 
 
 def _leading_doc(node) -> Optional[str]:
+    """A node's own doc comment is the LAST block/line comment in its leading
+    trivia -- an earlier one may belong to a preceding sibling's trailing
+    ///< comment (see _trailing_doc), so take the one closest to the node."""
+    doc = None
     for t in node.getFirstToken().trivia:
         if t.kind in _DOC_KINDS:
-            return _clean(t.getRawText())
-    return None
+            doc = t.getRawText()
+    return _clean(doc) if doc else None
+
+
+def _type_str(node) -> str:
+    """str(node) includes leading trivia (whitespace, and any comments that
+    belong to a preceding sibling's trailing ///< doc) -- strip comment lines
+    so only the actual type text remains."""
+    text = re.sub(r"//.*", "", str(node))
+    return " ".join(text.split())
 
 
 def _trailing_doc(next_node) -> Optional[str]:
@@ -35,6 +49,46 @@ def _trailing_doc(next_node) -> Optional[str]:
     return None
 
 
+def _parse_params(header) -> list:
+    if not header.parameters:
+        return []
+    params = []
+    decls = [
+        d for d in header.parameters.declarations
+        if d.kind == pyslang.syntax.SyntaxKind.ParameterDeclaration
+    ]
+    for i, d in enumerate(decls):
+        next_node = decls[i + 1] if i + 1 < len(decls) else header.parameters.closeParen
+        declarator = d.declarators[0]
+        params.append(Param(
+            name=declarator.name.valueText,
+            type=_type_str(d.type),
+            default=_type_str(declarator.initializer.expr) if declarator.initializer else None,
+            doc=_trailing_doc(next_node),
+        ))
+    return params
+
+
+def _parse_ports(header) -> list:
+    if not header.ports:
+        return []
+    ports = []
+    port_decls = [p for p in header.ports.ports if hasattr(p, "declarator")]
+    for i, p in enumerate(port_decls):
+        next_node = port_decls[i + 1] if i + 1 < len(port_decls) else header.ports.closeParen
+        ports.append(Port(
+            name=p.declarator.name.valueText,
+            direction=p.header.direction.valueText,
+            type=_type_str(p.header.dataType),
+            doc=_trailing_doc(next_node),
+        ))
+    return ports
+
+
+def _find_declaration(tree, kind):
+    return next(m for m in tree.root.members if m.kind == kind)
+
+
 def parse_module(path: str) -> ModuleDoc:
     # fromFile's default SourceManager caches file contents by path across
     # calls in the same process, so a fresh SourceManager avoids seeing a
@@ -44,37 +98,63 @@ def parse_module(path: str) -> ModuleDoc:
     if tree.diagnostics:
         raise ValueError(f"parse errors in {path}: {list(tree.diagnostics)}")
 
-    mod = next(
-        m for m in tree.root.members
-        if m.kind == pyslang.syntax.SyntaxKind.ModuleDeclaration
-    )
+    mod = _find_declaration(tree, pyslang.syntax.SyntaxKind.ModuleDeclaration)
     header = mod.header
-    doc = ModuleDoc(name=header.name.valueText, doc=_leading_doc(mod))
+    return ModuleDoc(
+        name=header.name.valueText,
+        doc=_leading_doc(mod),
+        params=_parse_params(header),
+        ports=_parse_ports(header),
+    )
 
-    if header.parameters:
-        decls = [
-            d for d in header.parameters.declarations
-            if d.kind == pyslang.syntax.SyntaxKind.ParameterDeclaration
-        ]
-        for i, d in enumerate(decls):
-            next_node = decls[i + 1] if i + 1 < len(decls) else header.parameters.closeParen
-            declarator = d.declarators[0]
-            doc.params.append(Param(
+
+def parse_file(path: str):
+    """Parse a .sv file containing a single module or interface, returning
+    whichever of ModuleDoc / InterfaceDoc matches."""
+    tree = pyslang.syntax.SyntaxTree.fromFile(path, pyslang.SourceManager())
+    if tree.diagnostics:
+        raise ValueError(f"parse errors in {path}: {list(tree.diagnostics)}")
+    kind = next(m.kind for m in tree.root.members if hasattr(m, "header"))
+    if kind == pyslang.syntax.SyntaxKind.InterfaceDeclaration:
+        return parse_interface(path)
+    return parse_module(path)
+
+
+def parse_interface(path: str) -> InterfaceDoc:
+    tree = pyslang.syntax.SyntaxTree.fromFile(path, pyslang.SourceManager())
+    if tree.diagnostics:
+        raise ValueError(f"parse errors in {path}: {list(tree.diagnostics)}")
+
+    iface = _find_declaration(tree, pyslang.syntax.SyntaxKind.InterfaceDeclaration)
+    header = iface.header
+    doc = InterfaceDoc(
+        name=header.name.valueText,
+        doc=_leading_doc(iface),
+        params=_parse_params(header),
+        ports=_parse_ports(header),
+    )
+
+    members = list(iface.members)
+    for i, m in enumerate(members):
+        next_node = members[i + 1] if i + 1 < len(members) else iface.endmodule
+        if m.kind == pyslang.syntax.SyntaxKind.DataDeclaration:
+            declarator = m.declarators[0]
+            doc.signals.append(Signal(
                 name=declarator.name.valueText,
-                type=str(d.type).strip(),
-                default=str(declarator.initializer.expr).strip() if declarator.initializer else None,
+                type=_type_str(m.type),
                 doc=_trailing_doc(next_node),
             ))
-
-    if header.ports:
-        port_decls = [p for p in header.ports.ports if hasattr(p, "declarator")]
-        for i, p in enumerate(port_decls):
-            next_node = port_decls[i + 1] if i + 1 < len(port_decls) else header.ports.closeParen
-            doc.ports.append(Port(
-                name=p.declarator.name.valueText,
-                direction=p.header.direction.valueText,
-                type=str(p.header.dataType).strip(),
-                doc=_trailing_doc(next_node),
-            ))
+        elif m.kind == pyslang.syntax.SyntaxKind.ModportDeclaration:
+            item = m.items[0]
+            modport = Modport(name=item.name.valueText, doc=_leading_doc(m))
+            raw_groups = [g for g in item.ports.ports if hasattr(g, "direction")]
+            for j, g in enumerate(raw_groups):
+                group_next = raw_groups[j + 1] if j + 1 < len(raw_groups) else item.ports.closeParen
+                modport.port_groups.append(ModportPortGroup(
+                    direction=g.direction.valueText,
+                    signals=[p.name.valueText for p in g.ports],
+                    doc=_trailing_doc(group_next),
+                ))
+            doc.modports.append(modport)
 
     return doc

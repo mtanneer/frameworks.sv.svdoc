@@ -4,13 +4,14 @@ import pathlib
 import sys
 
 from .fixer import fix_file
-from .parser import parse_module
-from .render_md import render
+from .ir import InterfaceDoc
+from .parser import parse_file
+from .render_md import render, render_interface
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="svdoc")
-    ap.add_argument("file", help="path to a .sv file containing one module")
+    ap.add_argument("file", help="path to a .sv file containing one module or interface")
     ap.add_argument("--out", choices=["md"], help="write rendered doc to a file instead of stdout")
     ap.add_argument("--fix", action="store_true",
                      help="insert ///< TODO stubs next to undocumented ports/params in place")
@@ -21,8 +22,8 @@ def main(argv=None):
         print(f"{'fixed' if changed else 'no changes needed for'} {args.file}")
         return
 
-    mod = parse_module(args.file)
-    text = render(mod)
+    doc = parse_file(args.file)
+    text = render_interface(doc) if isinstance(doc, InterfaceDoc) else render(doc)
 
     if args.out == "md":
         out_path = pathlib.Path(args.file).with_suffix(".md")

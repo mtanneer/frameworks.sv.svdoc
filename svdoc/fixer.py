@@ -19,10 +19,11 @@ def fix_file(path: str) -> bool:
     if tree.diagnostics:
         raise ValueError(f"parse errors in {path}: {list(tree.diagnostics)}")
 
-    mod = next(
-        m for m in tree.root.members
-        if m.kind == pyslang.syntax.SyntaxKind.ModuleDeclaration
-    )
+    # module and interface declarations share the same syntax shape
+    # (ModuleDeclarationSyntax, differentiated only by .kind) -- --fix scaffolds
+    # their header (params/ports) doc comments identically. Body constructs
+    # (interface signals/modports) aren't scaffolded here yet.
+    mod = next(m for m in tree.root.members if hasattr(m, "header"))
     header = mod.header
 
     # (offset, text_to_insert), applied back-to-front so earlier offsets stay valid.

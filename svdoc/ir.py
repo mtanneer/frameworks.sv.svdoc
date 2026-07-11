@@ -25,3 +25,34 @@ class ModuleDoc:
     doc: Optional[str]
     params: List[Param] = field(default_factory=list)
     ports: List[Port] = field(default_factory=list)
+
+
+@dataclass
+class Signal:
+    name: str
+    type: str
+    doc: Optional[str]
+
+
+@dataclass
+class ModportPortGroup:
+    direction: str
+    signals: List[str]
+    doc: Optional[str]
+
+
+@dataclass
+class Modport:
+    name: str
+    doc: Optional[str]
+    port_groups: List[ModportPortGroup] = field(default_factory=list)
+
+
+@dataclass
+class InterfaceDoc:
+    name: str
+    doc: Optional[str]
+    params: List[Param] = field(default_factory=list)
+    ports: List[Port] = field(default_factory=list)
+    signals: List[Signal] = field(default_factory=list)
+    modports: List[Modport] = field(default_factory=list)
