@@ -86,7 +86,17 @@ class Typedef:
 
 
 @dataclass
+class Subroutine:
+    name: str
+    doc: Optional[str]
+    kind: str  # "function" | "task"
+    return_type: Optional[str] = None  # function only
+    args: List[Port] = field(default_factory=list)  # reuses Port shape (name/direction/type/doc)
+
+
+@dataclass
 class PackageDoc:
     name: str
     doc: Optional[str]
     typedefs: List[Typedef] = field(default_factory=list)
+    subroutines: List[Subroutine] = field(default_factory=list)

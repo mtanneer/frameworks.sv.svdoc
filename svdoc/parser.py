@@ -8,7 +8,7 @@ import pyslang
 
 from .ir import (
     EnumValue, InterfaceDoc, Modport, ModportPortGroup, ModuleDoc, PackageDoc,
-    Param, Port, Signal, StructField, Typedef,
+    Param, Port, Signal, StructField, Subroutine, Typedef,
 )
 
 _DOC_KINDS = (pyslang.parsing.TriviaKind.BlockComment, pyslang.parsing.TriviaKind.LineComment)
@@ -222,6 +222,36 @@ def _parse_struct_fields(struct_type) -> list:
     return fields
 
 
+def _parse_subroutine_args(port_list) -> list:
+    if port_list is None:
+        return []
+    # comma-interleaved like params/ports/enum members -- filter to
+    # declarators first so next-item lookups skip over comma tokens.
+    decls = [p for p in port_list.ports if hasattr(p, "declarator")]
+    args = []
+    for i, p in enumerate(decls):
+        next_node = decls[i + 1] if i + 1 < len(decls) else port_list.closeParen
+        args.append(Port(
+            name=p.declarator.name.valueText,
+            direction=p.direction.valueText if p.direction else "input",
+            type=_type_str(p.dataType),
+            doc=_trailing_doc(next_node),
+        ))
+    return args
+
+
+def _parse_subroutine(m, kind: str) -> Subroutine:
+    proto = m.prototype
+    return_type = _type_str(proto.returnType) if kind == "function" else None
+    return Subroutine(
+        name=str(proto.name).strip(),
+        doc=_leading_doc(m),
+        kind=kind,
+        return_type=return_type,
+        args=_parse_subroutine_args(proto.portList),
+    )
+
+
 def parse_package(path: str) -> PackageDoc:
     tree = pyslang.syntax.SyntaxTree.fromFile(path, pyslang.SourceManager())
     if tree.diagnostics:
@@ -232,24 +262,27 @@ def parse_package(path: str) -> PackageDoc:
 
     members = list(pkg.members)
     for i, m in enumerate(members):
-        if m.kind != pyslang.syntax.SyntaxKind.TypedefDeclaration:
-            continue
         next_node = members[i + 1] if i + 1 < len(members) else pkg.endmodule
-        if m.type.kind == pyslang.syntax.SyntaxKind.EnumType:
-            doc.typedefs.append(Typedef(
-                name=m.name.valueText, doc=_leading_doc(m), kind="enum",
-                base_type=_type_str(m.type.baseType) if m.type.baseType else None,
-                values=_parse_enum_values(m.type),
-            ))
-        elif m.type.kind == pyslang.syntax.SyntaxKind.StructType:
-            doc.typedefs.append(Typedef(
-                name=m.name.valueText, doc=_leading_doc(m), kind="struct",
-                fields=_parse_struct_fields(m.type),
-            ))
-        else:
-            doc.typedefs.append(Typedef(
-                name=m.name.valueText, doc=_trailing_doc(next_node) or _leading_doc(m),
-                kind="alias", alias_type=_type_str(m.type),
-            ))
+        if m.kind == pyslang.syntax.SyntaxKind.FunctionDeclaration:
+            doc.subroutines.append(_parse_subroutine(m, "function"))
+        elif m.kind == pyslang.syntax.SyntaxKind.TaskDeclaration:
+            doc.subroutines.append(_parse_subroutine(m, "task"))
+        elif m.kind == pyslang.syntax.SyntaxKind.TypedefDeclaration:
+            if m.type.kind == pyslang.syntax.SyntaxKind.EnumType:
+                doc.typedefs.append(Typedef(
+                    name=m.name.valueText, doc=_leading_doc(m), kind="enum",
+                    base_type=_type_str(m.type.baseType) if m.type.baseType else None,
+                    values=_parse_enum_values(m.type),
+                ))
+            elif m.type.kind == pyslang.syntax.SyntaxKind.StructType:
+                doc.typedefs.append(Typedef(
+                    name=m.name.valueText, doc=_leading_doc(m), kind="struct",
+                    fields=_parse_struct_fields(m.type),
+                ))
+            else:
+                doc.typedefs.append(Typedef(
+                    name=m.name.valueText, doc=_trailing_doc(next_node) or _leading_doc(m),
+                    kind="alias", alias_type=_type_str(m.type),
+                ))
 
     return doc

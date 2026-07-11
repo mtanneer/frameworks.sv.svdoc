@@ -118,6 +118,32 @@ def test_fifo_pkg():
     assert "| `MODE_FLUSH` | 2 | Drain and clear on next cycle |" in text
 
 
+def test_fifo_util_pkg_subroutines():
+    pkg = parse_package("spike/example_func_pkg.sv")
+    assert pkg.name == "fifo_util_pkg"
+    assert [s.name for s in pkg.subroutines] == ["next_ptr", "do_reset"]
+
+    fn = pkg.subroutines[0]
+    assert fn.kind == "function"
+    assert fn.return_type == "int"
+    assert "next write pointer" in fn.doc
+    assert [(a.name, a.direction, a.type, a.doc) for a in fn.args] == [
+        ("ptr", "input", "int", "Current pointer value"),
+        ("depth", "input", "int", "FIFO depth"),
+    ]
+
+    task = pkg.subroutines[1]
+    assert task.kind == "task"
+    assert task.return_type is None
+    assert [(a.name, a.direction, a.doc) for a in task.args] == [
+        ("done", "output", "Set when reset completes"),
+    ]
+
+    text = render_package(pkg)
+    assert "Function returning `int`" in text
+    assert "| `ptr` | input | `int` | Current pointer value |" in text
+
+
 def test_resolve_types_cross_file():
     mod = parse_module("spike/example_multi_top.sv")
     assert [p.type_ref for p in mod.ports] == [None, None, None]  # unresolved before
@@ -136,5 +162,6 @@ if __name__ == "__main__":
     test_fix_fills_gaps_and_is_idempotent()
     test_handshake_interface()
     test_fifo_pkg()
+    test_fifo_util_pkg_subroutines()
     test_resolve_types_cross_file()
     print("ok")

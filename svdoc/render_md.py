@@ -86,4 +86,18 @@ def render_package(pkg: PackageDoc) -> str:
             lines.append(f"Alias for `{t.alias_type}`")
             lines.append("")
 
+    for s in pkg.subroutines:
+        lines.append(f"## `{s.name}`")
+        lines.append("")
+        if s.doc:
+            lines += [s.doc, ""]
+        header = f"Function returning `{s.return_type}`" if s.kind == "function" else "Task"
+        lines.append(header)
+        lines.append("")
+        if s.args:
+            lines += ["| Name | Direction | Type | Description |", "|---|---|---|---|"]
+            for a in s.args:
+                lines.append(f"| `{a.name}` | {a.direction} | `{a.type}` | {a.doc or ''} |")
+            lines.append("")
+
     return "\n".join(lines)
