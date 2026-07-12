@@ -15,6 +15,12 @@ from svdoc.parser import (
     parse_package,
     resolve_types,
 )
+from svdoc.render_diagram import (
+    render_hierarchy_dot,
+    render_hierarchy_mermaid,
+    render_module_symbol_dot,
+    render_module_symbol_mermaid,
+)
 from svdoc.render_html import render as render_html
 from svdoc.render_html import render_interface as render_html_interface
 from svdoc.render_md import render, render_interface, render_package
@@ -490,6 +496,55 @@ endmodule
         assert gen_paths == ["top.g[0].u_leaf2", "top.g[1].u_leaf2"]
         u_leaf2 = next(c for c in root.children if c.path == "top.g[0].u_leaf2")
         assert {p.name: p.value for p in u_leaf2.params} == {"W": "4"}
+    finally:
+        os.remove(path1)
+        os.remove(path2)
+
+
+def test_render_module_symbol_diagrams():
+    mod = parse_module("spike/example.sv")
+
+    mmd = render_module_symbol_mermaid(mod)
+    assert "flowchart LR" in mmd
+    assert 'subgraph fifo["fifo"]' in mmd
+    assert "wr_data: input" in mmd
+
+    dot = render_module_symbol_dot(mod)
+    assert 'digraph "fifo"' in dot
+    assert "<wr_data> wr_data: input" in dot
+
+
+def test_render_hierarchy_diagrams():
+    leaf_src = """\
+module leaf (input logic a, output logic b);
+endmodule
+"""
+    top_src = """\
+module top (input logic clk);
+    logic x, y;
+    leaf u_leaf (.a(x), .b(y));
+endmodule
+"""
+    fd1, path1 = tempfile.mkstemp(suffix=".sv")
+    os.write(fd1, leaf_src.encode())
+    os.close(fd1)
+    fd2, path2 = tempfile.mkstemp(suffix=".sv")
+    os.write(fd2, top_src.encode())
+    os.close(fd2)
+    try:
+        root = build_hierarchy("top", [path1, path2])
+
+        mmd = render_hierarchy_mermaid(root)
+        assert "flowchart TD" in mmd
+        assert "top --> top_u_leaf" in mmd
+        assert "u_leaf\\n(leaf)" in mmd
+
+        dot = render_hierarchy_dot(root)
+        assert '"top" -> "top_u_leaf"' in dot
+
+        # depth 0 collapses root's children into a placeholder
+        collapsed = render_hierarchy_mermaid(root, max_depth=0)
+        assert "1 more" in collapsed
     finally:
         os.remove(path1)
         os.remove(path2)
