@@ -7,8 +7,9 @@ svdoc documentation
 ===================
 
 ``svdoc`` is a pydoc-style documentation generator for SystemVerilog RTL,
-built on `pyslang <https://pypi.org/project/pyslang/>`_. See the project's
-``PLAN.md`` and ``CLAUDE.md`` for design background and roadmap status.
+built on `pyslang <https://pypi.org/project/pyslang/>`_. See the
+`project repository <https://github.com/mtanneer/frameworks.sv.svdoc>`_
+for usage, design background, and roadmap status.
 
 This site documents ``svdoc``'s own Python implementation (the IR schema,
 parser, and renderers) — not the SystemVerilog docs ``svdoc`` generates.
