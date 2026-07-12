@@ -23,13 +23,19 @@ HTML renderer
 -------------
 
 .. automodule:: svdoc.render_html
-   :members: render, render_interface, render_package
+   :members: render, render_interface, render_package, page
 
 Fixer
 -----
 
 .. automodule:: svdoc.fixer
    :members: fix_file
+
+Site builder
+------------
+
+.. automodule:: svdoc.build
+   :members: build_site
 
 CLI
 ---

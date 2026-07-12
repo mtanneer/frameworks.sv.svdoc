@@ -1,8 +1,10 @@
 """Minimal smoke test for the Phase 1 IR/renderer pipeline and --fix."""
 
+import shutil
 import tempfile
 import os
 
+from svdoc.build import build_site
 from svdoc.fixer import fix_file
 from svdoc.parser import parse_interface, parse_module, parse_package, resolve_types
 from svdoc.render_md import render, render_interface, render_package
@@ -296,6 +298,108 @@ endinterface
         os.remove(path2)
 
 
+def test_resolve_types_when_module_is_not_a_top_instance():
+    """resolve_types() must still resolve a module's port types even when
+    that module is instantiated by another module in the same file set --
+    without forcing it as an explicit top module, slang only elaborates
+    modules nothing else instantiates, so a non-top module would silently
+    get no type_ref/modport_preview at all. Found building a full multi-page
+    site (svdoc build) over real-world RTL where most modules are
+    instantiated by a top-level system module."""
+    leaf_src = """\
+module leaf (
+    my_if.dut bus
+);
+endmodule
+"""
+    if_src = """\
+interface my_if;
+    logic ready;
+    modport dut (input ready);
+endinterface
+"""
+    top_src = """\
+module top (
+    input logic clk
+);
+    my_if b();
+    leaf u_leaf (b.dut);
+endmodule
+"""
+    fd1, path1 = tempfile.mkstemp(suffix=".sv")
+    os.write(fd1, leaf_src.encode())
+    os.close(fd1)
+    fd2, path2 = tempfile.mkstemp(suffix=".sv")
+    os.write(fd2, if_src.encode())
+    os.close(fd2)
+    fd3, path3 = tempfile.mkstemp(suffix=".sv")
+    os.write(fd3, top_src.encode())
+    os.close(fd3)
+    try:
+        leaf = parse_module(path1)
+        all_paths = [path1, path2, path3]
+        resolve_types(leaf, all_paths)  # `leaf` is NOT a top instance here
+        assert leaf.ports[0].type_ref == "my_if::dut"
+        assert leaf.ports[0].modport_preview is not None
+        assert leaf.ports[0].modport_preview.name == "dut"
+    finally:
+        os.remove(path1)
+        os.remove(path2)
+        os.remove(path3)
+
+
+def test_build_site_generates_working_cross_links():
+    """svdoc build (build_site()) writes every construct into one flat
+    directory so convention-based cross-links always resolve, unlike
+    generating standalone pages into whatever directories the source files
+    happen to live in (the original bug report: a module in one folder and
+    its interface in another produced a link that pointed nowhere)."""
+    mod_src = """\
+module top (
+    my_if.dut bus  ///< the bus
+);
+endmodule
+"""
+    if_src = """\
+interface my_if;
+    logic ready;
+    modport dut (input ready);
+endinterface
+"""
+    src_dir = tempfile.mkdtemp()
+    out_dir = tempfile.mkdtemp()
+    try:
+        mod_path = os.path.join(src_dir, "top.sv")
+        if_path = os.path.join(src_dir, "my_if.sv")
+        with open(mod_path, "w") as f:
+            f.write(mod_src)
+        with open(if_path, "w") as f:
+            f.write(if_src)
+
+        index_path = build_site([mod_path, if_path], out_dir)
+        assert os.path.exists(index_path)
+        assert os.path.exists(os.path.join(out_dir, "top.html"))
+        assert os.path.exists(os.path.join(out_dir, "my_if.html"))
+
+        with open(os.path.join(out_dir, "top.html")) as f:
+            top_html = f.read()
+        assert 'href="my_if.html#dut"' in top_html
+
+        # the link must resolve to a real file in the SAME output directory
+        assert os.path.exists(os.path.join(out_dir, "my_if.html"))
+        with open(os.path.join(out_dir, "my_if.html")) as f:
+            if_html = f.read()
+        assert 'id="dut"' in if_html
+
+        with open(index_path) as f:
+            index_html = f.read()
+        assert 'href="top.html"' in index_html
+        assert 'href="my_if.html"' in index_html
+    finally:
+        shutil.rmtree(src_dir)
+        shutil.rmtree(out_dir)
+
+
 if __name__ == "__main__":
     test_fifo_example()
     test_fix_fills_gaps_and_is_idempotent()
@@ -307,4 +411,6 @@ if __name__ == "__main__":
     test_interface_typed_port()
     test_modport_group_with_multiple_signals()
     test_resolve_types_skips_interface_ports()
+    test_resolve_types_when_module_is_not_a_top_instance()
+    test_build_site_generates_working_cross_links()
     print("ok")

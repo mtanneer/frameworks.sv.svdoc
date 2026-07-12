@@ -194,17 +194,28 @@ def resolve_types(doc, paths: list) -> None:
     ``"package::type"`` name for any port whose type resolves to a type
     defined in another file. Mutates ``doc`` in place.
 
-    Only meaningful for modules today: a module becomes an elaborated
-    top-level instance, but a bare interface does not, so this is a no-op
-    when ``doc.name`` can't be found among the compilation's top instances.
+    Only meaningful for modules today: a bare interface never becomes an
+    elaborated top-level instance, so this is a no-op when ``doc.name`` can't
+    be found among the compilation's top instances.
 
     :param doc: An already-parsed module (or interface) doc to patch in place.
     :param paths: All ``.sv`` files needed to elaborate ``doc``, including the
         file it was originally parsed from.
     :raises ValueError: If any of the given files fails to parse cleanly.
     """
+    # Without an explicit topModules list, slang only elaborates modules that
+    # nothing else instantiates -- e.g. in a full multi-module design, most
+    # modules are instantiated by something else and would silently vanish
+    # from topInstances, making resolve_types() a no-op for them. Forcing
+    # doc.name as an explicit top module means it's elaborated on its own
+    # regardless of whether other files in `paths` also instantiate it.
+    opts = pyslang.ast.CompilationOptions()
+    opts.topModules = {doc.name}
+    bag = pyslang.Bag()
+    bag.compilationOptions = opts
+
     sm = pyslang.SourceManager()
-    comp = pyslang.ast.Compilation()
+    comp = pyslang.ast.Compilation(bag)
     for p in paths:
         tree = pyslang.syntax.SyntaxTree.fromFile(p, sm)
         if tree.diagnostics:

@@ -23,7 +23,10 @@ details table { margin: 0.5rem 0 0.5rem 1.5rem; width: calc(100% - 1.5rem); }
 """
 
 
-def _page(title: str, body_lines: list) -> str:
+def page(title: str, body_lines: list) -> str:
+    """Wrap ``body_lines`` (raw HTML fragments) in a self-contained HTML page
+    with the shared inline stylesheet. Exposed for :mod:`svdoc.build`, which
+    uses it to render the site's ``index.html``."""
     body = "\n".join(body_lines)
     return (
         f'<!doctype html><html><head><meta charset="utf-8">'
@@ -105,7 +108,7 @@ def render(mod: ModuleDoc) -> str:
         lines.append(f"<p>{escape(mod.doc)}</p>")
     lines += _params_section(mod.params)
     lines += _ports_section(mod.ports)
-    return _page(f"Module: {mod.name}", lines)
+    return page(f"Module: {mod.name}", lines)
 
 
 def render_interface(iface: InterfaceDoc) -> str:
@@ -147,7 +150,7 @@ def render_interface(iface: InterfaceDoc) -> str:
                 )
             lines.append("</table>")
 
-    return _page(f"Interface: {iface.name}", lines)
+    return page(f"Interface: {iface.name}", lines)
 
 
 def render_package(pkg: PackageDoc) -> str:
@@ -209,4 +212,4 @@ def render_package(pkg: PackageDoc) -> str:
                 )
             lines.append("</table>")
 
-    return _page(f"Package: {pkg.name}", lines)
+    return page(f"Package: {pkg.name}", lines)
