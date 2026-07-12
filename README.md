@@ -40,6 +40,9 @@ svdoc my_module.sv my_package.sv --out html
 
 # auto-scaffold missing doc comments in place (like `ruff --fix`)
 svdoc my_module.sv --fix
+
+# build a full linked HTML site from many files (any directory layout)
+svdoc build my_module.sv my_interface.sv my_package.sv --out-dir site/
 ```
 
 ## Doc comment convention
@@ -62,8 +65,8 @@ module fifo #(
 ```
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e ".[docs]"
-python test_svdoc.py
+pip install -e ".[dev,docs]"
+python -m pytest
 ```
 
 ## License
