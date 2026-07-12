@@ -6,6 +6,7 @@ whatever directories the source files happen to live in.
 
 import pathlib
 import re
+from html import escape
 
 from . import render_html
 from .ir import InterfaceDoc, ModuleDoc, PackageDoc
@@ -59,7 +60,9 @@ def build_site(paths: list, out_dir: str) -> str:
         page_name = f"{_safe_page_name(doc.name)}.html"
         (out / page_name).write_text(_RENDERERS[type(doc)](doc))
         label = _KIND_LABELS[type(doc)]
-        index_lines.append(f'<li>{label}: <a href="{page_name}">{doc.name}</a></li>')
+        index_lines.append(
+            f'<li>{label}: <a href="{escape(page_name)}">{escape(doc.name)}</a></li>'
+        )
     index_lines.append("</ul>")
 
     index_html = render_html.page("svdoc site", index_lines)
