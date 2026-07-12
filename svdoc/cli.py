@@ -33,9 +33,9 @@ def _run_single(args):
         print(f"{'fixed' if changed else 'no changes needed for'} {args.file}")
         return
 
-    doc = parse_file(args.file)
+    doc = parse_file(args.file, args.include_dir)
     if args.more_files and isinstance(doc, ModuleDoc):
-        resolve_types(doc, [args.file] + args.more_files)
+        resolve_types(doc, [args.file] + args.more_files, args.include_dir)
 
     if args.out:
         text = _RENDERERS[args.out][type(doc)](doc)
@@ -47,7 +47,7 @@ def _run_single(args):
 
 
 def _run_build(args):
-    index_path = build_site(args.files, args.out_dir)
+    index_path = build_site(args.files, args.out_dir, args.include_dir)
     print(f"wrote {len(args.files)} file(s) to a site at {index_path}")
 
 
@@ -55,14 +55,19 @@ def _build_parser():
     ap = argparse.ArgumentParser(prog="svdoc build")
     ap.add_argument("files", nargs="+", help=".sv files to document")
     ap.add_argument("--out-dir", required=True, help="directory to write the site into")
+    ap.add_argument(
+        "--include-dir",
+        action="append",
+        default=[],
+        help="directory to search for `include targets not alongside the including file (repeatable)",
+    )
     return ap
 
 
 def _single_parser():
     ap = argparse.ArgumentParser(
         prog="svdoc",
-        epilog="Also available: `svdoc build <files...> --out-dir <dir>` to "
-        "generate a multi-page linked HTML site.",
+        epilog="Also available: `svdoc build <files...> --out-dir <dir>` to generate a multi-page linked HTML site.",
     )
     ap.add_argument(
         "file",
@@ -83,6 +88,12 @@ def _single_parser():
         "--fix",
         action="store_true",
         help="insert ///< TODO stubs next to undocumented ports/params in place",
+    )
+    ap.add_argument(
+        "--include-dir",
+        action="append",
+        default=[],
+        help="directory to search for `include targets not alongside the including file (repeatable)",
     )
     return ap
 

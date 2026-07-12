@@ -26,7 +26,7 @@ jobs:
         with:
           python-version: "3.9"
       - run: pip install -e ".[dev]" pytest-cov
-      - run: pytest --cov=svdoc --cov-report=term-missing --cov-report=xml
+      - run: pytest --cov=svdoc --cov-report=term-missing --cov-report=xml --cov-fail-under=80
       - uses: actions/upload-artifact@v4
         with:
           name: coverage-xml

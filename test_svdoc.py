@@ -4,6 +4,8 @@ import os
 import shutil
 import tempfile
 
+import pytest
+
 from svdoc.build import build_site
 from svdoc.fixer import fix_file
 from svdoc.parser import (
@@ -43,6 +45,42 @@ endmodule
         assert mod.ports[0].doc == "Clock"
         assert mod.ports[1].doc == "TODO"
         assert mod.ports[2].doc == "TODO"
+
+        assert fix_file(path) is False  # idempotent, already fully documented
+    finally:
+        os.remove(path)
+
+
+def test_fix_fills_interface_body_gaps_and_is_idempotent():
+    """--fix originally only scaffolded a module/interface's header
+    (params/ports) -- interface bodies (signals/modports) were an explicit
+    scope gap (see PLAN.md). This covers both: an undocumented signal gets a
+    trailing ///< TODO, an undocumented modport gets a leading /** @brief
+    TODO */ stub indented to match the modport's own column, not column 0."""
+    src = """\
+interface my_if;
+    logic a;
+    logic b;
+
+    modport consumer (
+        input a,
+        output b
+    );
+endinterface
+"""
+    fd, path = tempfile.mkstemp(suffix=".sv")
+    os.write(fd, src.encode())
+    os.close(fd)
+    try:
+        assert fix_file(path) is True
+        iface = parse_interface(path)
+        assert iface.signals[0].doc == "TODO"
+        assert iface.signals[1].doc == "TODO"
+        assert iface.modports[0].doc == "@brief TODO"
+
+        with open(path) as f:
+            text = f.read()
+        assert "    /**\n     * @brief TODO\n     */\n    modport consumer" in text
 
         assert fix_file(path) is False  # idempotent, already fully documented
     finally:
@@ -455,6 +493,32 @@ endmodule
     finally:
         os.remove(path1)
         os.remove(path2)
+
+
+def test_include_dirs_resolves_cross_directory_include():
+    """`include targets resolve automatically when the included file lives
+    next to the including file, but real projects often keep a shared
+    include/ directory separate from per-module source dirs (the riscv_cpu2
+    layout PLAN.md's real-RTL testing found) -- that requires explicitly
+    telling the SourceManager where to look via addUserDirectories(), which
+    is what the include_dirs param threads through to."""
+    src_dir = tempfile.mkdtemp()
+    include_dir = tempfile.mkdtemp()
+    try:
+        with open(os.path.join(include_dir, "defs.svh"), "w") as f:
+            f.write("`define WIDTH 8\n")
+        mod_path = os.path.join(src_dir, "inc_mod.sv")
+        with open(mod_path, "w") as f:
+            f.write('`include "defs.svh"\nmodule inc_mod (\n    input logic [`WIDTH-1:0] data\n);\nendmodule\n')
+
+        with pytest.raises(ValueError):
+            parse_module(mod_path)
+
+        mod = parse_module(mod_path, include_dirs=[include_dir])
+        assert mod.ports[0].type == "logic [8-1:0]"
+    finally:
+        shutil.rmtree(src_dir)
+        shutil.rmtree(include_dir)
 
 
 if __name__ == "__main__":

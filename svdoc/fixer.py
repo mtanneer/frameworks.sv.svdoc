@@ -14,6 +14,15 @@ def _end_offset(node) -> int:
     return tok.range.end.offset
 
 
+def _brief_stub(text: str, offset: int) -> str:
+    """A `/** @brief TODO */` block stub, indented to match the column the
+    node it precedes starts at (mid-file insertions -- e.g. above a nested
+    modport -- land at the modport's own indentation, not column 0)."""
+    line_start = text.rfind("\n", 0, offset) + 1
+    indent = text[line_start:offset]
+    return f"/**\n{indent} * @brief TODO\n{indent} */\n{indent}"
+
+
 def fix_file(path: str) -> bool:
     """Scaffold missing doc comments in place, in ``path``, and save the result.
 
@@ -31,10 +40,14 @@ def fix_file(path: str) -> bool:
     if tree.diagnostics:
         raise ValueError(f"parse errors in {path}: {list(tree.diagnostics)}")
 
+    with open(path) as f:
+        text = f.read()
+
     # module and interface declarations share the same syntax shape
     # (ModuleDeclarationSyntax, differentiated only by .kind) -- --fix scaffolds
-    # their header (params/ports) doc comments identically. Body constructs
-    # (interface signals/modports) aren't scaffolded here yet.
+    # their header (params/ports) doc comments identically. Interface bodies
+    # (signals/modports) are scaffolded separately below, since modules don't
+    # have those constructs.
     mod = next(m for m in tree.root.members if hasattr(m, "header"))
     header = mod.header
 
@@ -43,7 +56,7 @@ def fix_file(path: str) -> bool:
 
     if _leading_doc(mod) is None:
         offset = mod.getFirstToken().range.start.offset
-        insertions.append((offset, "/**\n * @brief TODO\n */\n"))
+        insertions.append((offset, _brief_stub(text, offset)))
 
     if header.parameters:
         raw = list(header.parameters.declarations)
@@ -55,11 +68,7 @@ def fix_file(path: str) -> bool:
             # AFTER its separator (see parser._trailing_doc) -- for the last
             # item there's no comma, so the lookup and insertion point are
             # both the item itself, right before the closing paren.
-            lookup = (
-                raw[i + 2]
-                if has_comma and i + 2 < len(raw)
-                else header.parameters.closeParen
-            )
+            lookup = raw[i + 2] if has_comma and i + 2 < len(raw) else header.parameters.closeParen
             if _trailing_doc(lookup) is None:
                 offset = _end_offset(raw[i + 1]) if has_comma else _end_offset(node)
                 insertions.append((offset, "  ///< TODO"))
@@ -70,20 +79,24 @@ def fix_file(path: str) -> bool:
             if not hasattr(node, "declarator"):
                 continue
             has_comma = i + 1 < len(raw)
-            lookup = (
-                raw[i + 2]
-                if has_comma and i + 2 < len(raw)
-                else header.ports.closeParen
-            )
+            lookup = raw[i + 2] if has_comma and i + 2 < len(raw) else header.ports.closeParen
             if _trailing_doc(lookup) is None:
                 offset = _end_offset(raw[i + 1]) if has_comma else _end_offset(node)
                 insertions.append((offset, "  ///< TODO"))
 
+    if mod.kind == pyslang.syntax.SyntaxKind.InterfaceDeclaration:
+        members = list(mod.members)
+        for i, m in enumerate(members):
+            next_node = members[i + 1] if i + 1 < len(members) else mod.endmodule
+            if m.kind == pyslang.syntax.SyntaxKind.DataDeclaration and _trailing_doc(next_node) is None:
+                insertions.append((_end_offset(m), "  ///< TODO"))
+            elif m.kind == pyslang.syntax.SyntaxKind.ModportDeclaration and _leading_doc(m) is None:
+                offset = m.getFirstToken().range.start.offset
+                insertions.append((offset, _brief_stub(text, offset)))
+
     if not insertions:
         return False
 
-    with open(path) as f:
-        text = f.read()
     for offset, snippet in sorted(insertions, reverse=True):
         text = text[:offset] + snippet + text[offset:]
     with open(path, "w") as f:
