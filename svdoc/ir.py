@@ -37,6 +37,10 @@ class Port:
     :ivar doc: Extracted doc comment, or ``None`` if undocumented.
     :ivar type_ref: Fully-qualified ``"package::type"`` name if resolved
         cross-file via :func:`svdoc.parser.resolve_types`; ``None`` otherwise.
+    :ivar modport_preview: For an interface-typed port (``direction ==
+        "interface"``), the resolved :class:`Modport` from the interface file,
+        if it was found among the files passed to
+        :func:`svdoc.parser.resolve_types`; ``None`` otherwise.
     """
 
     name: str
@@ -44,6 +48,7 @@ class Port:
     type: str
     doc: Optional[str]
     type_ref: Optional[str] = None
+    modport_preview: Optional["Modport"] = None
 
 
 @dataclass

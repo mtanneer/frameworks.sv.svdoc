@@ -222,16 +222,41 @@ def resolve_types(doc, paths: list) -> None:
     # same way into "ifname::modport" so the HTML renderer's existing
     # pkg::type cross-linking machinery (_type_cell) handles both uniformly.
     resolved = {}
+    interface_ports = {}  # port name -> (interface name, modport name)
     for p in inst.body.portList:
         if hasattr(p, "type"):
             resolved[p.name] = str(p.type)
         elif p.kind == pyslang.ast.SymbolKind.InterfacePort and p.interfaceDef:
             resolved[p.name] = f"{p.interfaceDef.name}::{p.modport}"
+            interface_ports[p.name] = (p.interfaceDef.name, str(p.modport))
+
+    # For an inline HTML preview of the modport's ins/outs (not just a link
+    # to it), parse whichever of `paths` is that interface and grab the
+    # matching Modport object directly -- skip files that don't parse as an
+    # interface (modules/packages among `paths`), and only do this for
+    # interfaces actually referenced by a port, not every file.
+    needed_interfaces = {iface for iface, _ in interface_ports.values()}
+    interface_docs = {}
+    for p in paths:
+        if not needed_interfaces:
+            break
+        parsed = parse_file(p)
+        if isinstance(parsed, InterfaceDoc) and parsed.name in needed_interfaces:
+            interface_docs[parsed.name] = parsed
+            needed_interfaces.discard(parsed.name)
 
     for port in doc.ports:
         type_str = resolved.get(port.name)
         if type_str and "::" in type_str:
             port.type_ref = type_str
+        if port.name in interface_ports:
+            iface_name, modport_name = interface_ports[port.name]
+            iface_doc = interface_docs.get(iface_name)
+            if iface_doc:
+                port.modport_preview = next(
+                    (mp for mp in iface_doc.modports if mp.name == modport_name),
+                    None,
+                )
 
 
 def parse_interface(path: str) -> InterfaceDoc:

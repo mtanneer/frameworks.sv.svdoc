@@ -273,8 +273,20 @@ endinterface
         assert mod.ports[1].direction == "interface"
         assert mod.ports[1].type_ref == "my_if::dut"
 
+        # inline modport quick-view: the full Modport (direction/signals/doc)
+        # is attached directly, not just a link, so the HTML can show an
+        # expandable ins/outs preview without navigating away
+        preview = mod.ports[1].modport_preview
+        assert preview is not None
+        assert preview.name == "dut"
+        assert [(g.direction, g.signals) for g in preview.port_groups] == [
+            ("input", ["ready"]),
+        ]
+
         html = render_html(mod)
         assert '<a href="my_if.html#dut">my_if::dut</a>' in html
+        assert "<summary>modport <code>dut</code> ins/outs</summary>" in html
+        assert "<code>ready</code>" in html  # preview's signal name rendered inline
 
         iface = parse_interface(path2)
         iface_html = render_html_interface(iface)

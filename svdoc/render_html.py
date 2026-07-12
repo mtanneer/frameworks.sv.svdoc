@@ -17,6 +17,9 @@ th, td { border: 1px solid #ccc; padding: 0.4rem 0.6rem; text-align: left; }
 th { background: #f0f0f0; }
 code { background: #f5f5f5; padding: 0.1rem 0.3rem; border-radius: 3px; }
 h2 { border-bottom: 1px solid #ccc; padding-bottom: 0.2rem; margin-top: 2rem; }
+details { margin: 0; }
+details summary { cursor: pointer; color: #555; padding: 0.2rem 0; }
+details table { margin: 0.5rem 0 0.5rem 1.5rem; width: calc(100% - 1.5rem); }
 """
 
 
@@ -54,6 +57,25 @@ def _params_section(params) -> list:
     return lines
 
 
+def _modport_preview(mp) -> str:
+    """A collapsed-by-default inline quick view of a modport's ins/outs,
+    for an interface-typed port -- lets a reader see the direction/signal
+    list without leaving the current page, while the type_ref link (see
+    _type_cell) still offers the full interface page for deeper detail."""
+    rows = ["<table><tr><th>Direction</th><th>Signals</th><th>Description</th></tr>"]
+    for g in mp.port_groups:
+        signals = ", ".join(f"<code>{escape(s)}</code>" for s in g.signals)
+        rows.append(
+            f"<tr><td>{escape(g.direction)}</td><td>{signals}</td><td>{escape(g.doc or '')}</td></tr>"
+        )
+    rows.append("</table>")
+    doc = f"<p>{escape(mp.doc)}</p>" if mp.doc else ""
+    return (
+        f"<details><summary>modport <code>{escape(mp.name)}</code> ins/outs</summary>"
+        f"{doc}{''.join(rows)}</details>"
+    )
+
+
 def _ports_section(ports) -> list:
     if not ports:
         return []
@@ -68,6 +90,10 @@ def _ports_section(ports) -> list:
             f"<td>{_type_cell(p.type, p.type_ref)}</td>"
             f"<td>{escape(p.doc or '')}</td></tr>"
         )
+        if p.modport_preview:
+            lines.append(
+                f'<tr><td colspan="4">{_modport_preview(p.modport_preview)}</td></tr>'
+            )
     lines.append("</table>")
     return lines
 
