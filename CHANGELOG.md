@@ -3,6 +3,28 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.0] - 2026-07-12
+
+### Added
+- Block diagram rendering (Phase 4): module symbol view (single-module box +
+  ports) and hierarchical instance-tree diagrams, both as Mermaid flowchart
+  and Graphviz dot text, with depth-collapsing for large hierarchies
+  - `svdoc file.sv --out mmd|dot` — module symbol diagram
+  - `svdoc hierarchy <top_module> <files...> --out-file X --format mmd|dot
+    --max-depth N` — hierarchical block diagram
+- CI: secret-scan (gitleaks) gates a pytest run with coverage floor
+- `` `include`` resolution across directories (`--include-dir`), closing the
+  last Phase 2 multi-file gap
+- `--fix` now scaffolds interface body gaps (signals/modports), not just
+  headers
+
+### Known limitations
+- Hierarchy diagrams render interface instances as their own nodes rather
+  than collapsing them into labeled modport connections between real module
+  blocks (tracked in #6)
+- No diagram embedding into Markdown/HTML doc pages yet
+- Classes/UVM not parsed
+
 ## [0.2.0] - 2026-07-11
 
 ### Added
