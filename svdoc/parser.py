@@ -9,13 +9,16 @@ import pyslang
 
 from .ir import (
     EnumValue,
+    Instance,
     InterfaceDoc,
     Modport,
     ModportPortGroup,
     ModuleDoc,
     PackageDoc,
     Param,
+    ParamValue,
     Port,
+    PortConnection,
     Signal,
     StructField,
     Subroutine,
@@ -59,9 +62,7 @@ def _type_str(node) -> str:
 def _trailing_doc(next_node) -> Optional[str]:
     """Doxygen ///< trailing comments attach as leading trivia on the *next*
     item in the list (see Phase 0 spike findings in PLAN.md)."""
-    tok = (
-        next_node.getFirstToken() if hasattr(next_node, "getFirstToken") else next_node
-    )
+    tok = next_node.getFirstToken() if hasattr(next_node, "getFirstToken") else next_node
     for t in tok.trivia:
         if t.kind == pyslang.parsing.TriviaKind.LineComment:
             return _clean(t.getRawText())
@@ -72,11 +73,7 @@ def _parse_params(header) -> list:
     if not header.parameters:
         return []
     params = []
-    decls = [
-        d
-        for d in header.parameters.declarations
-        if d.kind == pyslang.syntax.SyntaxKind.ParameterDeclaration
-    ]
+    decls = [d for d in header.parameters.declarations if d.kind == pyslang.syntax.SyntaxKind.ParameterDeclaration]
     for i, d in enumerate(decls):
         next_node = decls[i + 1] if i + 1 < len(decls) else header.parameters.closeParen
         declarator = d.declarators[0]
@@ -84,9 +81,7 @@ def _parse_params(header) -> list:
             Param(
                 name=declarator.name.valueText,
                 type=_type_str(d.type),
-                default=_type_str(declarator.initializer.expr)
-                if declarator.initializer
-                else None,
+                default=_type_str(declarator.initializer.expr) if declarator.initializer else None,
                 doc=_trailing_doc(next_node),
             )
         )
@@ -111,9 +106,7 @@ def _parse_ports(header) -> list:
     ports = []
     port_decls = [p for p in header.ports.ports if hasattr(p, "declarator")]
     for i, p in enumerate(port_decls):
-        next_node = (
-            port_decls[i + 1] if i + 1 < len(port_decls) else header.ports.closeParen
-        )
+        next_node = port_decls[i + 1] if i + 1 < len(port_decls) else header.ports.closeParen
         direction, type_str = _port_direction_and_type(p.header)
         ports.append(
             Port(
@@ -171,11 +164,7 @@ def parse_file(path: str):
     tree = pyslang.syntax.SyntaxTree.fromFile(path, pyslang.SourceManager())
     if tree.diagnostics:
         raise ValueError(f"parse errors in {path}: {list(tree.diagnostics)}")
-    kind = next(
-        m.kind
-        for m in tree.root.members
-        if hasattr(m, "header") or hasattr(m, "members")
-    )
+    kind = next(m.kind for m in tree.root.members if hasattr(m, "header") or hasattr(m, "members"))
     if kind == pyslang.syntax.SyntaxKind.InterfaceDeclaration:
         return parse_interface(path)
     if kind == pyslang.syntax.SyntaxKind.PackageDeclaration:
@@ -270,6 +259,82 @@ def resolve_types(doc, paths: list) -> None:
                 )
 
 
+def _port_connection_text(inst_sym, port) -> Optional[str]:
+    conn = inst_sym.getPortConnection(port)
+    if conn is None or conn.expression is None:
+        return None
+    expr = conn.expression
+    # An output/inout port's connection is wrapped in an internal Assignment
+    # expression (lvalue = port) rather than being the connected expression
+    # itself -- unwrap to .left to get the actual connected signal text.
+    if expr.kind == pyslang.ast.ExpressionKind.Assignment:
+        expr = expr.left
+    return str(expr.syntax) if expr.syntax else None
+
+
+def _build_instance(inst_sym) -> Instance:
+    params = [
+        ParamValue(name=p.name, value=str(p.value))
+        for p in inst_sym.body.parameters
+        if p.kind == pyslang.ast.SymbolKind.Parameter
+    ]
+    connections = [PortConnection(name=p.name, expr=_port_connection_text(inst_sym, p)) for p in inst_sym.body.portList]
+    instance = Instance(
+        path=inst_sym.body.hierarchicalPath,
+        name=inst_sym.name,
+        module=inst_sym.body.definition.name,
+        params=params,
+        connections=connections,
+    )
+
+    def visit_child(node):
+        if node is inst_sym:
+            return None
+        if node.kind == pyslang.ast.SymbolKind.Instance:
+            instance.children.append(_build_instance(node))
+            return pyslang.ast.VisitAction.Skip
+        return None
+
+    inst_sym.visit(visit_child)
+    return instance
+
+
+def build_hierarchy(module_name: str, paths: list) -> Instance:
+    """Elaborate ``module_name`` as top and build its instance hierarchy.
+
+    Walks the elaborated instance tree (via ``Symbol.visit``), including
+    instances expanded from ``generate`` blocks, and records each instance's
+    resolved (post-override) parameter values and port connection
+    expressions.
+
+    :param module_name: Name of the module to elaborate as the hierarchy root.
+    :param paths: All ``.sv`` files needed to elaborate it (the module itself
+        plus anything it instantiates, directly or transitively).
+    :returns: The root :class:`~svdoc.ir.Instance`, with ``children`` nested
+        to match the real instantiation tree.
+    :raises ValueError: If any of the given files fails to parse cleanly.
+    :raises LookupError: If ``module_name`` isn't found as a top instance
+        after elaboration.
+    """
+    opts = pyslang.ast.CompilationOptions()
+    opts.topModules = {module_name}
+    bag = pyslang.Bag()
+    bag.compilationOptions = opts
+
+    sm = pyslang.SourceManager()
+    comp = pyslang.ast.Compilation(bag)
+    for p in paths:
+        tree = pyslang.syntax.SyntaxTree.fromFile(p, sm)
+        if tree.diagnostics:
+            raise ValueError(f"parse errors in {p}: {list(tree.diagnostics)}")
+        comp.addSyntaxTree(tree)
+
+    top = next((i for i in comp.getRoot().topInstances if i.name == module_name), None)
+    if top is None:
+        raise LookupError(f"{module_name!r} not found as a top instance")
+    return _build_instance(top)
+
+
 def parse_interface(path: str) -> InterfaceDoc:
     """Parse a ``.sv`` file containing a single interface declaration.
 
@@ -309,17 +374,11 @@ def parse_interface(path: str) -> InterfaceDoc:
             modport = Modport(name=item.name.valueText, doc=_leading_doc(m))
             raw_groups = [g for g in item.ports.ports if hasattr(g, "direction")]
             for j, g in enumerate(raw_groups):
-                group_next = (
-                    raw_groups[j + 1]
-                    if j + 1 < len(raw_groups)
-                    else item.ports.closeParen
-                )
+                group_next = raw_groups[j + 1] if j + 1 < len(raw_groups) else item.ports.closeParen
                 # g.ports is comma-interleaved (ModportNamedPort nodes plus
                 # comma tokens) when a direction covers multiple signals
                 # (e.g. "input a, b, c") -- filter to named-port nodes only.
-                signal_names = [
-                    p.name.valueText for p in g.ports if hasattr(p, "name")
-                ]
+                signal_names = [p.name.valueText for p in g.ports if hasattr(p, "name")]
                 modport.port_groups.append(
                     ModportPortGroup(
                         direction=g.direction.valueText,
@@ -427,9 +486,7 @@ def parse_package(path: str) -> PackageDoc:
                         name=m.name.valueText,
                         doc=_leading_doc(m),
                         kind="enum",
-                        base_type=_type_str(m.type.baseType)
-                        if m.type.baseType
-                        else None,
+                        base_type=_type_str(m.type.baseType) if m.type.baseType else None,
                         values=_parse_enum_values(m.type),
                     )
                 )

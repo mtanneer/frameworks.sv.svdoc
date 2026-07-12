@@ -164,3 +164,40 @@ class PackageDoc:
     doc: Optional[str]
     typedefs: List[Typedef] = field(default_factory=list)
     subroutines: List[Subroutine] = field(default_factory=list)
+
+
+@dataclass
+class ParamValue:
+    """A single parameter's resolved (post-override) value on one instance."""
+
+    name: str
+    value: str
+
+
+@dataclass
+class PortConnection:
+    """A single port's connected expression on one instance."""
+
+    name: str
+    expr: Optional[str]
+
+
+@dataclass
+class Instance:
+    """One elaborated instance in a module hierarchy.
+
+    :ivar path: Full hierarchical path (e.g. ``"top.g[0].u_leaf2"``), unique
+        within the hierarchy even under generate-block array expansion.
+    :ivar name: Instance name as written (e.g. ``"u_leaf2"``).
+    :ivar module: Name of the module definition being instantiated.
+    :ivar params: Resolved parameter values (post any ``#(...)`` overrides).
+    :ivar connections: Port name -> connected expression, in port-list order.
+    :ivar children: Instances directly nested inside this one.
+    """
+
+    path: str
+    name: str
+    module: str
+    params: List[ParamValue] = field(default_factory=list)
+    connections: List[PortConnection] = field(default_factory=list)
+    children: List["Instance"] = field(default_factory=list)
