@@ -69,6 +69,10 @@ pip install -e ".[dev,docs]"
 python -m pytest
 ```
 
+## Changelog
+
+See `CHANGELOG.md`.
+
 ## License
 
 MIT — see `LICENSE`.
