@@ -1,5 +1,7 @@
 # svdoc
 
+[![PyPI](https://img.shields.io/pypi/v/svdoc)](https://pypi.org/project/svdoc/)
+
 A pydoc-style documentation generator for SystemVerilog RTL, built on
 [`pyslang`](https://pypi.org/project/pyslang/) (Python bindings for the
 `slang` SystemVerilog compiler).
