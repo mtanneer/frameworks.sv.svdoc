@@ -93,6 +93,18 @@ def _parse_params(header) -> list:
     return params
 
 
+def _port_direction_and_type(port_header) -> tuple:
+    """Port headers come in different syntax shapes depending on whether the
+    port is a plain data type (VariablePortHeader, has .direction/.dataType)
+    or an interface reference (InterfacePortHeader, e.g. `some_if.modport
+    name` -- no direction, "type" is the interface[.modport] name instead)."""
+    if port_header.kind == pyslang.syntax.SyntaxKind.InterfacePortHeader:
+        iface_name = _type_str(port_header.nameOrKeyword)
+        modport = _type_str(port_header.modport) if port_header.modport else ""
+        return "interface", f"{iface_name}{modport}"
+    return port_header.direction.valueText, _type_str(port_header.dataType)
+
+
 def _parse_ports(header) -> list:
     if not header.ports:
         return []
@@ -102,11 +114,12 @@ def _parse_ports(header) -> list:
         next_node = (
             port_decls[i + 1] if i + 1 < len(port_decls) else header.ports.closeParen
         )
+        direction, type_str = _port_direction_and_type(p.header)
         ports.append(
             Port(
                 name=p.declarator.name.valueText,
-                direction=p.header.direction.valueText,
-                type=_type_str(p.header.dataType),
+                direction=direction,
+                type=type_str,
                 doc=_trailing_doc(next_node),
             )
         )
@@ -253,10 +266,16 @@ def parse_interface(path: str) -> InterfaceDoc:
                     if j + 1 < len(raw_groups)
                     else item.ports.closeParen
                 )
+                # g.ports is comma-interleaved (ModportNamedPort nodes plus
+                # comma tokens) when a direction covers multiple signals
+                # (e.g. "input a, b, c") -- filter to named-port nodes only.
+                signal_names = [
+                    p.name.valueText for p in g.ports if hasattr(p, "name")
+                ]
                 modport.port_groups.append(
                     ModportPortGroup(
                         direction=g.direction.valueText,
-                        signals=[p.name.valueText for p in g.ports],
+                        signals=signal_names,
                         doc=_trailing_doc(group_next),
                     )
                 )

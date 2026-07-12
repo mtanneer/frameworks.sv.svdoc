@@ -183,6 +183,57 @@ def test_html_escapes_doc_text():
     assert "&amp;" in html
 
 
+def test_interface_typed_port():
+    """A module port can itself be an interface reference (e.g. `some_if.modport
+    name`), not just a plain data type -- found parsing real-world RTL
+    (riscv_cpu2) where every module port was interface-typed."""
+    src = """\
+module dut (
+    my_if.consumer aif  ///< bus connection
+);
+endmodule
+"""
+    fd, path = tempfile.mkstemp(suffix=".sv")
+    os.write(fd, src.encode())
+    os.close(fd)
+    try:
+        mod = parse_module(path)
+        assert mod.ports[0].name == "aif"
+        assert mod.ports[0].direction == "interface"
+        assert mod.ports[0].type == "my_if.consumer"
+        assert mod.ports[0].doc == "bus connection"
+    finally:
+        os.remove(path)
+
+
+def test_modport_group_with_multiple_signals():
+    """A single modport direction clause can list several signals
+    (`input a, b, c`), not just one -- found parsing real-world RTL where
+    modport signal lists interleave names with commas."""
+    src = """\
+interface my_if;
+    logic a;
+    logic b;
+    logic c;
+
+    modport consumer (
+        input a, b, c  ///< all three
+    );
+endinterface
+"""
+    fd, path = tempfile.mkstemp(suffix=".sv")
+    os.write(fd, src.encode())
+    os.close(fd)
+    try:
+        iface = parse_interface(path)
+        group = iface.modports[0].port_groups[0]
+        assert group.direction == "input"
+        assert group.signals == ["a", "b", "c"]
+        assert group.doc == "all three"
+    finally:
+        os.remove(path)
+
+
 if __name__ == "__main__":
     test_fifo_example()
     test_fix_fills_gaps_and_is_idempotent()
@@ -191,4 +242,6 @@ if __name__ == "__main__":
     test_fifo_util_pkg_subroutines()
     test_resolve_types_cross_file()
     test_html_escapes_doc_text()
+    test_interface_typed_port()
+    test_modport_group_with_multiple_signals()
     print("ok")
