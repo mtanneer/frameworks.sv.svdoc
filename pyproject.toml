@@ -22,7 +22,7 @@ classifiers = [
 
 [project.optional-dependencies]
 docs = ["sphinx", "sphinx-rtd-theme"]
-dev = ["ruff", "pytest"]
+dev = ["ruff", "pytest", "pytest-cov"]
 
 [project.scripts]
 svdoc = "svdoc.cli:main"
