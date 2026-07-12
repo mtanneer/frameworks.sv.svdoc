@@ -1,6 +1,9 @@
-# svdoc
+# [svdoc](https://github.com/mtanneer/frameworks.sv.svdoc)
 
+[![CI](https://github.com/mtanneer/frameworks.sv.svdoc/actions/workflows/ci.yml/badge.svg)](https://github.com/mtanneer/frameworks.sv.svdoc/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/svdoc)](https://pypi.org/project/svdoc/)
+[![Python](https://img.shields.io/pypi/pyversions/svdoc)](https://pypi.org/project/svdoc/)
+[![License](https://img.shields.io/github/license/mtanneer/frameworks.sv.svdoc)](LICENSE)
 
 A pydoc-style documentation generator for SystemVerilog RTL, built on
 [`pyslang`](https://pypi.org/project/pyslang/) (Python bindings for the
@@ -71,6 +74,10 @@ pip install -e ".[dev,docs]"
 python -m pytest
 git config core.hooksPath scripts/hooks  # runs `ruff format` on commit
 ```
+
+## Contributing
+
+See `CONTRIBUTING.md`.
 
 ## Changelog
 
