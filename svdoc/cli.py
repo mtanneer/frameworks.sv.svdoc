@@ -6,11 +6,11 @@ import argparse
 import pathlib
 import sys
 
-from . import render_html, render_md
+from . import render_diagram, render_html, render_md
 from .build import build_site
 from .fixer import fix_file
 from .ir import InterfaceDoc, ModuleDoc, PackageDoc
-from .parser import parse_file, resolve_types
+from .parser import build_hierarchy, parse_file, resolve_types
 
 _RENDERERS = {
     "md": {
@@ -24,7 +24,15 @@ _RENDERERS = {
         PackageDoc: render_html.render_package,
     },
 }
-_EXTENSIONS = {"md": ".md", "html": ".html"}
+_EXTENSIONS = {"md": ".md", "html": ".html", "mmd": ".mmd", "dot": ".dot"}
+_SYMBOL_RENDERERS = {
+    "mmd": render_diagram.render_module_symbol_mermaid,
+    "dot": render_diagram.render_module_symbol_dot,
+}
+_HIERARCHY_RENDERERS = {
+    "mmd": render_diagram.render_hierarchy_mermaid,
+    "dot": render_diagram.render_hierarchy_dot,
+}
 
 
 def _run_single(args):
@@ -37,7 +45,14 @@ def _run_single(args):
     if args.more_files and isinstance(doc, ModuleDoc):
         resolve_types(doc, [args.file] + args.more_files, args.include_dir)
 
-    if args.out:
+    if args.out in _SYMBOL_RENDERERS:
+        if not isinstance(doc, ModuleDoc):
+            sys.exit(f"--out {args.out} only supports modules, not {type(doc).__name__}")
+        text = _SYMBOL_RENDERERS[args.out](doc)
+        out_path = pathlib.Path(args.file).with_suffix(_EXTENSIONS[args.out])
+        out_path.write_text(text)
+        print(f"wrote {out_path}")
+    elif args.out:
         text = _RENDERERS[args.out][type(doc)](doc)
         out_path = pathlib.Path(args.file).with_suffix(_EXTENSIONS[args.out])
         out_path.write_text(text)
@@ -51,10 +66,39 @@ def _run_build(args):
     print(f"wrote {len(args.files)} file(s) to a site at {index_path}")
 
 
+def _run_hierarchy(args):
+    root = build_hierarchy(args.top_module, args.files, args.include_dir)
+    text = _HIERARCHY_RENDERERS[args.format](root, max_depth=args.max_depth)
+    out_path = pathlib.Path(args.out_file)
+    out_path.write_text(text)
+    print(f"wrote {out_path}")
+
+
 def _build_parser():
     ap = argparse.ArgumentParser(prog="svdoc build")
     ap.add_argument("files", nargs="+", help=".sv files to document")
     ap.add_argument("--out-dir", required=True, help="directory to write the site into")
+    ap.add_argument(
+        "--include-dir",
+        action="append",
+        default=[],
+        help="directory to search for `include targets not alongside the including file (repeatable)",
+    )
+    return ap
+
+
+def _hierarchy_parser():
+    ap = argparse.ArgumentParser(prog="svdoc hierarchy")
+    ap.add_argument("top_module", help="name of the module to elaborate as the hierarchy root")
+    ap.add_argument("files", nargs="+", help=".sv files needed to elaborate top_module")
+    ap.add_argument("--out-file", required=True, help="path to write the diagram to")
+    ap.add_argument("--format", choices=["mmd", "dot"], default="mmd", help="diagram format")
+    ap.add_argument(
+        "--max-depth",
+        type=int,
+        default=render_diagram.DEFAULT_MAX_DEPTH,
+        help="collapse instances deeper than this into a placeholder node",
+    )
     ap.add_argument(
         "--include-dir",
         action="append",
@@ -81,8 +125,9 @@ def _single_parser():
     )
     ap.add_argument(
         "--out",
-        choices=["md", "html"],
-        help="write rendered doc to a file in this format instead of printing to stdout",
+        choices=["md", "html", "mmd", "dot"],
+        help="write rendered doc to a file in this format instead of printing to stdout "
+        "(mmd/dot render a module symbol diagram instead of docs, modules only)",
     )
     ap.add_argument(
         "--fix",
@@ -124,6 +169,11 @@ def main(argv=None):
     if argv and argv[0] == "build":
         args = _build_parser().parse_args(argv[1:])
         _run_build(args)
+        return
+
+    if argv and argv[0] == "hierarchy":
+        args = _hierarchy_parser().parse_args(argv[1:])
+        _run_hierarchy(args)
         return
 
     args = _single_parser().parse_args(argv)
