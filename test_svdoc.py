@@ -6,7 +6,13 @@ import tempfile
 
 from svdoc.build import build_site
 from svdoc.fixer import fix_file
-from svdoc.parser import parse_interface, parse_module, parse_package, resolve_types
+from svdoc.parser import (
+    build_hierarchy,
+    parse_interface,
+    parse_module,
+    parse_package,
+    resolve_types,
+)
 from svdoc.render_html import render as render_html
 from svdoc.render_html import render_interface as render_html_interface
 from svdoc.render_md import render, render_interface, render_package
@@ -400,6 +406,57 @@ endinterface
         shutil.rmtree(out_dir)
 
 
+def test_build_hierarchy_generate_and_params():
+    """build_hierarchy() must resolve per-instance parameter overrides and
+    port connections, and expand generate-block instance arrays into
+    distinct hierarchical paths (e.g. "top.g[0].u_leaf2" vs
+    "top.g[1].u_leaf2") rather than collapsing them into one node."""
+    leaf_src = """\
+module leaf #(parameter int W = 8) (
+    input  logic [W-1:0] a,
+    output logic [W-1:0] b
+);
+endmodule
+"""
+    top_src = """\
+module top (input logic clk);
+    logic [7:0] x, y;
+    leaf #(.W(8)) u_leaf (.a(x), .b(y));
+    genvar i;
+    generate
+        for (i = 0; i < 2; i = i + 1) begin : g
+            leaf #(.W(4)) u_leaf2 (.a(x[3:0]), .b(y[3:0]));
+        end
+    endgenerate
+endmodule
+"""
+    fd1, path1 = tempfile.mkstemp(suffix=".sv")
+    os.write(fd1, leaf_src.encode())
+    os.close(fd1)
+    fd2, path2 = tempfile.mkstemp(suffix=".sv")
+    os.write(fd2, top_src.encode())
+    os.close(fd2)
+    try:
+        root = build_hierarchy("top", [path1, path2])
+        assert root.module == "top"
+        assert root.path == "top"
+        assert len(root.children) == 3
+
+        u_leaf = next(c for c in root.children if c.name == "u_leaf")
+        assert u_leaf.path == "top.u_leaf"
+        assert u_leaf.module == "leaf"
+        assert {p.name: p.value for p in u_leaf.params} == {"W": "8"}
+        assert {c.name: c.expr for c in u_leaf.connections} == {"a": "x", "b": "y"}
+
+        gen_paths = sorted(c.path for c in root.children if c.name == "u_leaf2")
+        assert gen_paths == ["top.g[0].u_leaf2", "top.g[1].u_leaf2"]
+        u_leaf2 = next(c for c in root.children if c.path == "top.g[0].u_leaf2")
+        assert {p.name: p.value for p in u_leaf2.params} == {"W": "4"}
+    finally:
+        os.remove(path1)
+        os.remove(path2)
+
+
 if __name__ == "__main__":
     test_fifo_example()
     test_fix_fills_gaps_and_is_idempotent()
@@ -413,4 +470,5 @@ if __name__ == "__main__":
     test_resolve_types_skips_interface_ports()
     test_resolve_types_when_module_is_not_a_top_instance()
     test_build_site_generates_working_cross_links()
+    test_build_hierarchy_generate_and_params()
     print("ok")
