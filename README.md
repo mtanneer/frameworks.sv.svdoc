@@ -17,7 +17,7 @@ documentation — no manual editing required.
   another file resolves to its fully-qualified `package::type` name
 
 Not yet supported: classes/UVM, instantiation hierarchy, block diagrams, full
-multi-file `` `include`` resolution. See `PLAN.md` for the full roadmap.
+multi-file `` `include`` resolution.
 
 ## Install
 
@@ -65,9 +65,6 @@ source .venv/bin/activate
 pip install -e ".[docs]"
 python test_svdoc.py
 ```
-
-See `CLAUDE.md` and `PLAN.md` for project history, design decisions, and
-roadmap status.
 
 ## License
 

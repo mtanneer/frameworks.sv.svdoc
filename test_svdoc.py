@@ -1,15 +1,15 @@
 """Minimal smoke test for the Phase 1 IR/renderer pipeline and --fix."""
 
+import os
 import shutil
 import tempfile
-import os
 
 from svdoc.build import build_site
 from svdoc.fixer import fix_file
 from svdoc.parser import parse_interface, parse_module, parse_package, resolve_types
-from svdoc.render_md import render, render_interface, render_package
 from svdoc.render_html import render as render_html
 from svdoc.render_html import render_interface as render_html_interface
+from svdoc.render_md import render, render_interface, render_package
 
 
 def test_fix_fills_gaps_and_is_idempotent():

@@ -5,10 +5,20 @@ whatever directories the source files happen to live in.
 """
 
 import pathlib
+import re
 
 from . import render_html
 from .ir import InterfaceDoc, ModuleDoc, PackageDoc
 from .parser import parse_file, resolve_types
+
+_UNSAFE_NAME_CHARS = re.compile(r"[^\w.-]")
+
+
+def _safe_page_name(name: str) -> str:
+    """Sanitize a construct name for use as an output filename. SV escaped
+    identifiers (``\\../../foo``) parse without error and can contain path
+    separators, so page filenames can't trust ``doc.name`` directly."""
+    return _UNSAFE_NAME_CHARS.sub("_", name)
 
 _RENDERERS = {
     ModuleDoc: render_html.render,
@@ -46,7 +56,7 @@ def build_site(paths: list, out_dir: str) -> str:
 
     index_lines = ["<h1>svdoc site</h1>", "<ul>"]
     for doc in sorted(docs, key=lambda d: (_KIND_LABELS[type(d)], d.name)):
-        page_name = f"{doc.name}.html"
+        page_name = f"{_safe_page_name(doc.name)}.html"
         (out / page_name).write_text(_RENDERERS[type(doc)](doc))
         label = _KIND_LABELS[type(doc)]
         index_lines.append(f'<li>{label}: <a href="{page_name}">{doc.name}</a></li>')

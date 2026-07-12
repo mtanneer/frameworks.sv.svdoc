@@ -175,7 +175,9 @@ def render_package(pkg: PackageDoc) -> str:
             )
             for v in t.values:
                 lines.append(
-                    f"<tr><td><code>{escape(v.name)}</code></td><td>{escape(v.value or '')}</td><td>{escape(v.doc or '')}</td></tr>"
+                    f"<tr><td><code>{escape(v.name)}</code></td>"
+                    f"<td>{escape(v.value or '')}</td>"
+                    f"<td>{escape(v.doc or '')}</td></tr>"
                 )
             lines.append("</table>")
         elif t.kind == "struct":
@@ -185,7 +187,9 @@ def render_package(pkg: PackageDoc) -> str:
             )
             for f in t.fields:
                 lines.append(
-                    f"<tr><td><code>{escape(f.name)}</code></td><td><code>{escape(f.type)}</code></td><td>{escape(f.doc or '')}</td></tr>"
+                    f"<tr><td><code>{escape(f.name)}</code></td>"
+                    f"<td><code>{escape(f.type)}</code></td>"
+                    f"<td>{escape(f.doc or '')}</td></tr>"
                 )
             lines.append("</table>")
         else:

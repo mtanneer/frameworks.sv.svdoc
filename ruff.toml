@@ -1,0 +1,10 @@
+target-version = "py39"
+line-length = 120
+
+[lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+# UP006/UP007/UP035: py39 venv, no PEP 585/604 (list[x], X | None) — see .claude/CLAUDE.md
+ignore = ["UP006", "UP007", "UP035"]
+
+[format]
+quote-style = "double"
