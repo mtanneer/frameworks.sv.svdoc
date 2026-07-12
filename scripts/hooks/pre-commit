@@ -1,0 +1,14 @@
+#!/bin/sh
+# Runs `ruff format` on staged .py files before commit, re-staging any files
+# it reformats. Enable once per clone: git config core.hooksPath scripts/hooks
+set -e
+
+repo_root=$(git rev-parse --show-toplevel)
+ruff="$repo_root/.venv/bin/ruff"
+command -v "$ruff" >/dev/null 2>&1 || ruff="ruff"
+
+staged=$(git diff --cached --name-only --diff-filter=ACM -- '*.py')
+[ -z "$staged" ] && exit 0
+
+"$ruff" format $staged
+git add $staged

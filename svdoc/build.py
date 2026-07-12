@@ -7,6 +7,7 @@ whatever directories the source files happen to live in.
 import pathlib
 import re
 from html import escape
+from typing import Optional
 
 from . import render_html
 from .ir import InterfaceDoc, ModuleDoc, PackageDoc
@@ -21,6 +22,7 @@ def _safe_page_name(name: str) -> str:
     separators, so page filenames can't trust ``doc.name`` directly."""
     return _UNSAFE_NAME_CHARS.sub("_", name)
 
+
 _RENDERERS = {
     ModuleDoc: render_html.render,
     InterfaceDoc: render_html.render_interface,
@@ -33,7 +35,7 @@ _KIND_LABELS = {
 }
 
 
-def build_site(paths: list, out_dir: str) -> str:
+def build_site(paths: list, out_dir: str, include_dirs: Optional[list] = None) -> str:
     """Parse every file in ``paths`` and write one HTML page per construct
     into a single flat ``out_dir``, plus an ``index.html`` linking to all of
     them. Because every page lands in the same directory, the convention-based
@@ -44,25 +46,26 @@ def build_site(paths: list, out_dir: str) -> str:
         (one construct per file, same as :func:`svdoc.parser.parse_file`);
         cross-file type resolution runs against the full set for every module.
     :param out_dir: Directory to write the site into. Created if missing.
+    :param include_dirs: Optional directories to search for ```include``
+        targets that don't live alongside any file in ``paths`` (e.g. a
+        shared ``include/`` directory separate from per-module source dirs).
     :returns: Path to the written ``index.html``.
     :raises ValueError: If any file fails to parse cleanly.
     """
     out = pathlib.Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
 
-    docs = [parse_file(p) for p in paths]
+    docs = [parse_file(p, include_dirs) for p in paths]
     for doc in docs:
         if isinstance(doc, ModuleDoc):
-            resolve_types(doc, paths)
+            resolve_types(doc, paths, include_dirs)
 
     index_lines = ["<h1>svdoc site</h1>", "<ul>"]
     for doc in sorted(docs, key=lambda d: (_KIND_LABELS[type(d)], d.name)):
         page_name = f"{_safe_page_name(doc.name)}.html"
         (out / page_name).write_text(_RENDERERS[type(doc)](doc))
         label = _KIND_LABELS[type(doc)]
-        index_lines.append(
-            f'<li>{label}: <a href="{escape(page_name)}">{escape(doc.name)}</a></li>'
-        )
+        index_lines.append(f'<li>{label}: <a href="{escape(page_name)}">{escape(doc.name)}</a></li>')
     index_lines.append("</ul>")
 
     index_html = render_html.page("svdoc site", index_lines)

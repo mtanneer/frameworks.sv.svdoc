@@ -31,6 +31,19 @@ _DOC_KINDS = (
 )
 
 
+def _source_manager(include_dirs: Optional[list] = None) -> pyslang.SourceManager:
+    """Build a fresh SourceManager, optionally registered with directories to
+    search for ```include`` targets that don't live next to the including
+    file (e.g. a shared ``include/`` dir separate from per-module ``source/``
+    dirs -- the layout PLAN.md's real-RTL testing found). A fresh instance is
+    always used (never a shared/cached one) per the existing fromFile-caching
+    gotcha noted elsewhere in this module."""
+    sm = pyslang.SourceManager()
+    for d in include_dirs or []:
+        sm.addUserDirectories(d)
+    return sm
+
+
 def _clean(text: str) -> str:
     """Strip comment delimiters (/** */, ///<, //) and leading '*'/whitespace."""
     text = text.strip()
@@ -123,11 +136,15 @@ def _find_declaration(tree, kind):
     return next(m for m in tree.root.members if m.kind == kind)
 
 
-def parse_module(path: str) -> ModuleDoc:
+def parse_module(path: str, include_dirs: Optional[list] = None) -> ModuleDoc:
     """Parse a ``.sv`` file containing a single module declaration.
 
     :param path: Path to the ``.sv`` file. Only the first module found in the
         file is parsed.
+    :param include_dirs: Optional directories to search for ```include``
+        targets that don't live alongside ``path`` (e.g. a shared
+        ``include/`` directory). ```include``s resolve automatically without
+        this when the included file is in the same directory as ``path``.
     :returns: The module's :class:`~svdoc.ir.ModuleDoc`.
     :raises ValueError: If the file fails to parse cleanly.
     """
@@ -135,7 +152,7 @@ def parse_module(path: str) -> ModuleDoc:
     # calls in the same process, so a fresh SourceManager avoids seeing a
     # stale read of a file that was modified earlier in this process
     # (e.g. by --fix, or in tests that fix then re-parse the same path).
-    tree = pyslang.syntax.SyntaxTree.fromFile(path, pyslang.SourceManager())
+    tree = pyslang.syntax.SyntaxTree.fromFile(path, _source_manager(include_dirs))
     if tree.diagnostics:
         raise ValueError(f"parse errors in {path}: {list(tree.diagnostics)}")
 
@@ -149,7 +166,7 @@ def parse_module(path: str) -> ModuleDoc:
     )
 
 
-def parse_file(path: str):
+def parse_file(path: str, include_dirs: Optional[list] = None):
     """Parse a ``.sv`` file containing a single module, interface, or package.
 
     Dispatches to :func:`parse_module`, :func:`parse_interface`, or
@@ -157,22 +174,24 @@ def parse_file(path: str):
     declaration found.
 
     :param path: Path to the ``.sv`` file.
+    :param include_dirs: Optional directories to search for ```include``
+        targets that don't live alongside ``path``.
     :returns: A :class:`~svdoc.ir.ModuleDoc`, :class:`~svdoc.ir.InterfaceDoc`,
         or :class:`~svdoc.ir.PackageDoc`, matching whichever construct was found.
     :raises ValueError: If the file fails to parse cleanly.
     """
-    tree = pyslang.syntax.SyntaxTree.fromFile(path, pyslang.SourceManager())
+    tree = pyslang.syntax.SyntaxTree.fromFile(path, _source_manager(include_dirs))
     if tree.diagnostics:
         raise ValueError(f"parse errors in {path}: {list(tree.diagnostics)}")
     kind = next(m.kind for m in tree.root.members if hasattr(m, "header") or hasattr(m, "members"))
     if kind == pyslang.syntax.SyntaxKind.InterfaceDeclaration:
-        return parse_interface(path)
+        return parse_interface(path, include_dirs)
     if kind == pyslang.syntax.SyntaxKind.PackageDeclaration:
-        return parse_package(path)
-    return parse_module(path)
+        return parse_package(path, include_dirs)
+    return parse_module(path, include_dirs)
 
 
-def resolve_types(doc, paths: list) -> None:
+def resolve_types(doc, paths: list, include_dirs: Optional[list] = None) -> None:
     """Resolve cross-file port types by elaborating a full ``Compilation``.
 
     Given a :class:`~svdoc.ir.ModuleDoc` (or :class:`~svdoc.ir.InterfaceDoc`)
@@ -190,6 +209,9 @@ def resolve_types(doc, paths: list) -> None:
     :param doc: An already-parsed module (or interface) doc to patch in place.
     :param paths: All ``.sv`` files needed to elaborate ``doc``, including the
         file it was originally parsed from.
+    :param include_dirs: Optional directories to search for ```include``
+        targets that don't live alongside any file in ``paths`` (e.g. a
+        shared ``include/`` directory separate from per-module source dirs).
     :raises ValueError: If any of the given files fails to parse cleanly.
     """
     # Without an explicit topModules list, slang only elaborates modules that
@@ -203,7 +225,7 @@ def resolve_types(doc, paths: list) -> None:
     bag = pyslang.Bag()
     bag.compilationOptions = opts
 
-    sm = pyslang.SourceManager()
+    sm = _source_manager(include_dirs)
     comp = pyslang.ast.Compilation(bag)
     for p in paths:
         tree = pyslang.syntax.SyntaxTree.fromFile(p, sm)
@@ -240,7 +262,7 @@ def resolve_types(doc, paths: list) -> None:
     for p in paths:
         if not needed_interfaces:
             break
-        parsed = parse_file(p)
+        parsed = parse_file(p, include_dirs)
         if isinstance(parsed, InterfaceDoc) and parsed.name in needed_interfaces:
             interface_docs[parsed.name] = parsed
             needed_interfaces.discard(parsed.name)
@@ -299,7 +321,7 @@ def _build_instance(inst_sym) -> Instance:
     return instance
 
 
-def build_hierarchy(module_name: str, paths: list) -> Instance:
+def build_hierarchy(module_name: str, paths: list, include_dirs: Optional[list] = None) -> Instance:
     """Elaborate ``module_name`` as top and build its instance hierarchy.
 
     Walks the elaborated instance tree (via ``Symbol.visit``), including
@@ -310,6 +332,8 @@ def build_hierarchy(module_name: str, paths: list) -> Instance:
     :param module_name: Name of the module to elaborate as the hierarchy root.
     :param paths: All ``.sv`` files needed to elaborate it (the module itself
         plus anything it instantiates, directly or transitively).
+    :param include_dirs: Optional directories to search for ```include``
+        targets that don't live alongside any file in ``paths``.
     :returns: The root :class:`~svdoc.ir.Instance`, with ``children`` nested
         to match the real instantiation tree.
     :raises ValueError: If any of the given files fails to parse cleanly.
@@ -321,7 +345,7 @@ def build_hierarchy(module_name: str, paths: list) -> Instance:
     bag = pyslang.Bag()
     bag.compilationOptions = opts
 
-    sm = pyslang.SourceManager()
+    sm = _source_manager(include_dirs)
     comp = pyslang.ast.Compilation(bag)
     for p in paths:
         tree = pyslang.syntax.SyntaxTree.fromFile(p, sm)
@@ -335,16 +359,18 @@ def build_hierarchy(module_name: str, paths: list) -> Instance:
     return _build_instance(top)
 
 
-def parse_interface(path: str) -> InterfaceDoc:
+def parse_interface(path: str, include_dirs: Optional[list] = None) -> InterfaceDoc:
     """Parse a ``.sv`` file containing a single interface declaration.
 
     :param path: Path to the ``.sv`` file. Only the first interface found in
         the file is parsed.
+    :param include_dirs: Optional directories to search for ```include``
+        targets that don't live alongside ``path``.
     :returns: The interface's :class:`~svdoc.ir.InterfaceDoc`, including its
         signals and modports.
     :raises ValueError: If the file fails to parse cleanly.
     """
-    tree = pyslang.syntax.SyntaxTree.fromFile(path, pyslang.SourceManager())
+    tree = pyslang.syntax.SyntaxTree.fromFile(path, _source_manager(include_dirs))
     if tree.diagnostics:
         raise ValueError(f"parse errors in {path}: {list(tree.diagnostics)}")
 
@@ -456,16 +482,18 @@ def _parse_subroutine(m, kind: str) -> Subroutine:
     )
 
 
-def parse_package(path: str) -> PackageDoc:
+def parse_package(path: str, include_dirs: Optional[list] = None) -> PackageDoc:
     """Parse a ``.sv`` file containing a single package declaration.
 
     :param path: Path to the ``.sv`` file. Only the first package found in
         the file is parsed.
+    :param include_dirs: Optional directories to search for ```include``
+        targets that don't live alongside ``path``.
     :returns: The package's :class:`~svdoc.ir.PackageDoc`, including its
         typedefs (enums, structs, aliases) and subroutines (functions, tasks).
     :raises ValueError: If the file fails to parse cleanly.
     """
-    tree = pyslang.syntax.SyntaxTree.fromFile(path, pyslang.SourceManager())
+    tree = pyslang.syntax.SyntaxTree.fromFile(path, _source_manager(include_dirs))
     if tree.diagnostics:
         raise ValueError(f"parse errors in {path}: {list(tree.diagnostics)}")
 

@@ -67,6 +67,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev,docs]"
 python -m pytest
+git config core.hooksPath scripts/hooks  # runs `ruff format` on commit
 ```
 
 ## Changelog
