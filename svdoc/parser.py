@@ -215,10 +215,19 @@ def resolve_types(doc, paths: list) -> None:
     if inst is None:
         return
 
-    # InterfacePort symbols (a port that is itself an interface reference,
-    # e.g. `some_if.modport name`) have no .type -- only plain data-type ports
-    # (SymbolKind.Port) do, so only those are candidates for type_ref.
-    resolved = {p.name: str(p.type) for p in inst.body.portList if hasattr(p, "type")}
+    # Two port symbol shapes: plain data-type ports (SymbolKind.Port, has
+    # .type) resolve to a package-qualified type string like "pkg::type".
+    # Interface-typed ports (SymbolKind.InterfacePort, e.g. `some_if.modport
+    # name`) have no .type but do have .interfaceDef/.modport -- resolved the
+    # same way into "ifname::modport" so the HTML renderer's existing
+    # pkg::type cross-linking machinery (_type_cell) handles both uniformly.
+    resolved = {}
+    for p in inst.body.portList:
+        if hasattr(p, "type"):
+            resolved[p.name] = str(p.type)
+        elif p.kind == pyslang.ast.SymbolKind.InterfacePort and p.interfaceDef:
+            resolved[p.name] = f"{p.interfaceDef.name}::{p.modport}"
+
     for port in doc.ports:
         type_str = resolved.get(port.name)
         if type_str and "::" in type_str:

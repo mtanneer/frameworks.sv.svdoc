@@ -7,6 +7,7 @@ from svdoc.fixer import fix_file
 from svdoc.parser import parse_interface, parse_module, parse_package, resolve_types
 from svdoc.render_md import render, render_interface, render_package
 from svdoc.render_html import render as render_html
+from svdoc.render_html import render_interface as render_html_interface
 
 
 def test_fix_fills_gaps_and_is_idempotent():
@@ -238,7 +239,12 @@ def test_resolve_types_skips_interface_ports():
     """resolve_types() must not crash when a module has an interface-typed
     port (e.g. `some_if.modport name`) alongside plain data-type ports --
     elaborated InterfacePort symbols have no .type attribute, unlike plain
-    Port symbols. Found parsing real-world RTL (riscv_cpu2's system.sv)."""
+    Port symbols. Found parsing real-world RTL (riscv_cpu2's system.sv).
+
+    Also verifies that such ports get a type_ref of "ifname::modport" (so the
+    HTML renderer's existing pkg::type cross-link machinery picks them up
+    too), and that the link target matches the anchor render_interface()
+    actually emits for that modport."""
     top_src = """\
 module top (
     input  logic  clk,
@@ -265,6 +271,14 @@ endinterface
         assert mod.ports[0].type_ref is None
         assert mod.ports[1].name == "bus"
         assert mod.ports[1].direction == "interface"
+        assert mod.ports[1].type_ref == "my_if::dut"
+
+        html = render_html(mod)
+        assert '<a href="my_if.html#dut">my_if::dut</a>' in html
+
+        iface = parse_interface(path2)
+        iface_html = render_html_interface(iface)
+        assert 'id="dut"' in iface_html  # link target actually exists
     finally:
         os.remove(path1)
         os.remove(path2)
