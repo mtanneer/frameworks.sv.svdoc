@@ -215,7 +215,10 @@ def resolve_types(doc, paths: list) -> None:
     if inst is None:
         return
 
-    resolved = {p.name: str(p.type) for p in inst.body.portList}
+    # InterfacePort symbols (a port that is itself an interface reference,
+    # e.g. `some_if.modport name`) have no .type -- only plain data-type ports
+    # (SymbolKind.Port) do, so only those are candidates for type_ref.
+    resolved = {p.name: str(p.type) for p in inst.body.portList if hasattr(p, "type")}
     for port in doc.ports:
         type_str = resolved.get(port.name)
         if type_str and "::" in type_str:

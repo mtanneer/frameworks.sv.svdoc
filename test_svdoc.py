@@ -234,6 +234,42 @@ endinterface
         os.remove(path)
 
 
+def test_resolve_types_skips_interface_ports():
+    """resolve_types() must not crash when a module has an interface-typed
+    port (e.g. `some_if.modport name`) alongside plain data-type ports --
+    elaborated InterfacePort symbols have no .type attribute, unlike plain
+    Port symbols. Found parsing real-world RTL (riscv_cpu2's system.sv)."""
+    top_src = """\
+module top (
+    input  logic  clk,
+    my_if.dut     bus
+);
+endmodule
+"""
+    if_src = """\
+interface my_if;
+    logic ready;
+    modport dut (input ready);
+endinterface
+"""
+    fd1, path1 = tempfile.mkstemp(suffix=".sv")
+    os.write(fd1, top_src.encode())
+    os.close(fd1)
+    fd2, path2 = tempfile.mkstemp(suffix=".sv")
+    os.write(fd2, if_src.encode())
+    os.close(fd2)
+    try:
+        mod = parse_module(path1)
+        resolve_types(mod, [path1, path2])  # must not raise
+        assert mod.ports[0].name == "clk"
+        assert mod.ports[0].type_ref is None
+        assert mod.ports[1].name == "bus"
+        assert mod.ports[1].direction == "interface"
+    finally:
+        os.remove(path1)
+        os.remove(path2)
+
+
 if __name__ == "__main__":
     test_fifo_example()
     test_fix_fills_gaps_and_is_idempotent()
@@ -244,4 +280,5 @@ if __name__ == "__main__":
     test_html_escapes_doc_text()
     test_interface_typed_port()
     test_modport_group_with_multiple_signals()
+    test_resolve_types_skips_interface_ports()
     print("ok")
