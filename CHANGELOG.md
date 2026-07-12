@@ -3,6 +3,23 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.0] - 2026-07-11
+
+### Added
+- Instance hierarchy IR: `build_hierarchy(module_name, paths)` elaborates a
+  module as top and walks the real instance tree, resolving per-instance
+  parameter overrides (post `#(...)` override) and port connection
+  expressions
+- `generate`-block instance arrays expand into distinct hierarchical paths
+  (e.g. `top.g[0].u_leaf2`, `top.g[1].u_leaf2`) rather than collapsing
+
+### Known limitations
+- No block diagram rendering yet from the instance hierarchy (planned,
+  Phase 4)
+- Classes/UVM not parsed
+- Multi-file resolution covers a module + the packages/interfaces it
+  directly depends on, not full `` `include`` resolution
+
 ## [0.1.0] - 2026-07-12
 
 Initial release.
