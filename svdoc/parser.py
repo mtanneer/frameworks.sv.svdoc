@@ -294,19 +294,39 @@ def _port_connection_text(inst_sym, port) -> Optional[str]:
     return str(expr.syntax) if expr.syntax else None
 
 
+def _build_port_connection(inst_sym, p) -> PortConnection:
+    # Interface-typed ports bind to a (interface instance, modport) pair
+    # rather than a data expression -- getPortConnection().expression is
+    # always None for these, so read the binding straight off the port
+    # symbol's own .connection instead.
+    if p.kind == pyslang.ast.SymbolKind.InterfacePort:
+        conn = p.connection
+        if conn is not None:
+            iface_inst, modport = conn
+            return PortConnection(
+                name=p.name,
+                expr=None,
+                interface_instance=iface_inst.name,
+                modport=modport.name,
+            )
+        return PortConnection(name=p.name, expr=None)
+    return PortConnection(name=p.name, expr=_port_connection_text(inst_sym, p))
+
+
 def _build_instance(inst_sym) -> Instance:
     params = [
         ParamValue(name=p.name, value=str(p.value))
         for p in inst_sym.body.parameters
         if p.kind == pyslang.ast.SymbolKind.Parameter
     ]
-    connections = [PortConnection(name=p.name, expr=_port_connection_text(inst_sym, p)) for p in inst_sym.body.portList]
+    connections = [_build_port_connection(inst_sym, p) for p in inst_sym.body.portList]
     instance = Instance(
         path=inst_sym.body.hierarchicalPath,
         name=inst_sym.name,
         module=inst_sym.body.definition.name,
         params=params,
         connections=connections,
+        is_interface=inst_sym.body.definition.definitionKind == pyslang.ast.DefinitionKind.Interface,
     )
 
     def visit_child(node):

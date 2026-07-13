@@ -176,10 +176,22 @@ class ParamValue:
 
 @dataclass
 class PortConnection:
-    """A single port's connected expression on one instance."""
+    """A single port's connected expression on one instance.
+
+    :ivar expr: Connected expression text, for plain data-type ports.
+        ``None`` for interface-typed ports (see ``interface_instance``/
+        ``modport`` instead) or unconnected ports.
+    :ivar interface_instance: For an interface-typed port, the name of the
+        sibling interface instance it's bound to (e.g. ``"hs"``); ``None``
+        for plain data-type ports.
+    :ivar modport: For an interface-typed port, the modport name used
+        (e.g. ``"producer"``); ``None`` for plain data-type ports.
+    """
 
     name: str
     expr: Optional[str]
+    interface_instance: Optional[str] = None
+    modport: Optional[str] = None
 
 
 @dataclass
@@ -189,10 +201,12 @@ class Instance:
     :ivar path: Full hierarchical path (e.g. ``"top.g[0].u_leaf2"``), unique
         within the hierarchy even under generate-block array expansion.
     :ivar name: Instance name as written (e.g. ``"u_leaf2"``).
-    :ivar module: Name of the module definition being instantiated.
+    :ivar module: Name of the module/interface definition being instantiated.
     :ivar params: Resolved parameter values (post any ``#(...)`` overrides).
     :ivar connections: Port name -> connected expression, in port-list order.
     :ivar children: Instances directly nested inside this one.
+    :ivar is_interface: ``True`` if this instance is of an ``interface``
+        definition rather than a ``module``.
     """
 
     path: str
@@ -201,3 +215,4 @@ class Instance:
     params: List[ParamValue] = field(default_factory=list)
     connections: List[PortConnection] = field(default_factory=list)
     children: List["Instance"] = field(default_factory=list)
+    is_interface: bool = False
