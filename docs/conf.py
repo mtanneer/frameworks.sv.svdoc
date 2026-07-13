@@ -36,6 +36,7 @@ language = "en"
 
 html_theme = "sphinx_rtd_theme"
 html_static_path = ["_static"]
+html_extra_path = ["examples"]
 
 html_context = {
     "display_github": True,
