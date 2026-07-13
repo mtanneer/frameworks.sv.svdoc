@@ -550,6 +550,61 @@ endmodule
         os.remove(path2)
 
 
+def test_render_hierarchy_collapses_interface_instances_into_modport_edges():
+    """Interface instances (e.g. a handshake_if wiring a producer to a
+    consumer) should not appear as their own diagram nodes -- instead the
+    two real module instances connected via it get a direct edge labeled
+    with the modports involved (issue #6)."""
+    if_src = """\
+interface handshake_if (input logic clk);
+    logic valid;
+    modport producer (output valid);
+    modport consumer (input valid);
+endinterface
+"""
+    producer_src = """\
+module producer (handshake_if.producer p);
+endmodule
+"""
+    consumer_src = """\
+module consumer (handshake_if.consumer c);
+endmodule
+"""
+    top_src = """\
+module top (input logic clk);
+    handshake_if hs (.clk(clk));
+    producer u_prod (.p(hs.producer));
+    consumer u_cons (.c(hs.consumer));
+endmodule
+"""
+    paths = []
+    for src in [if_src, producer_src, consumer_src, top_src]:
+        fd, path = tempfile.mkstemp(suffix=".sv")
+        os.write(fd, src.encode())
+        os.close(fd)
+        paths.append(path)
+    try:
+        root = build_hierarchy("top", paths)
+        assert {c.name for c in root.children} == {"hs", "u_prod", "u_cons"}
+        hs = next(c for c in root.children if c.name == "hs")
+        assert hs.is_interface
+        u_prod = next(c for c in root.children if c.name == "u_prod")
+        assert not u_prod.is_interface
+        assert u_prod.connections[0].interface_instance == "hs"
+        assert u_prod.connections[0].modport == "producer"
+
+        mmd = render_hierarchy_mermaid(root)
+        assert "hs" not in mmd
+        assert "top_u_prod -.producer/consumer.-> top_u_cons" in mmd
+
+        dot = render_hierarchy_dot(root)
+        assert "hs" not in dot
+        assert '"top_u_prod" -> "top_u_cons" [label="producer/consumer"' in dot
+    finally:
+        for path in paths:
+            os.remove(path)
+
+
 def test_include_dirs_resolves_cross_directory_include():
     """`include targets resolve automatically when the included file lives
     next to the including file, but real projects often keep a shared
@@ -590,4 +645,5 @@ if __name__ == "__main__":
     test_resolve_types_when_module_is_not_a_top_instance()
     test_build_site_generates_working_cross_links()
     test_build_hierarchy_generate_and_params()
+    test_render_hierarchy_collapses_interface_instances_into_modport_edges()
     print("ok")
