@@ -18,5 +18,6 @@ parser, and renderers) — not the SystemVerilog docs ``svdoc`` generates.
    :maxdepth: 2
    :caption: Contents:
 
+   example
    api
 

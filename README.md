@@ -50,6 +50,13 @@ svdoc my_module.sv --fix
 svdoc build my_module.sv my_interface.sv my_package.sv --out-dir site/
 ```
 
+## Example output
+
+Given a small FIFO module ([`spike/example.sv`](spike/example.sv)), `svdoc`
+generates Markdown and HTML docs — see the
+[example output](https://mtanneer.github.io/frameworks.sv.svdoc/example.html)
+on the published docs site.
+
 ## Doc comment convention
 
 Doxygen-style, both forms supported:
