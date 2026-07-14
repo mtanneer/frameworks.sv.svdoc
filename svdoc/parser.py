@@ -7,6 +7,18 @@ from typing import Optional
 
 import pyslang
 
+if not hasattr(pyslang, "parsing"):
+    raise ImportError(
+        f"svdoc requires pyslang>=11.0.0 (submodule API), but the imported "
+        f"pyslang ({getattr(pyslang, '__file__', '?')}) predates that split "
+        f"(no pyslang.parsing). This usually means a venv with "
+        f"--system-site-packages resolved pyslang from an older global "
+        f"install (e.g. pinned by another package like siliconcompiler) "
+        f"instead of installing svdoc's required version into the venv. "
+        f"Fix: pip install --upgrade --force-reinstall 'pyslang>=11.0.0', "
+        f"or recreate the venv without --system-site-packages."
+    )
+
 from .ir import (
     EnumValue,
     Instance,
