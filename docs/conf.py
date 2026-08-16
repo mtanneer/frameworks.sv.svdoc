@@ -5,6 +5,7 @@
 
 import os
 import sys
+from importlib.metadata import version as _pkg_version
 
 sys.path.insert(0, os.path.abspath(".."))
 
@@ -14,7 +15,7 @@ sys.path.insert(0, os.path.abspath(".."))
 project = "svdoc"
 copyright = "2026, svdoc"
 author = "svdoc"
-release = "0.1.0"
+release = _pkg_version("svdoc")
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
