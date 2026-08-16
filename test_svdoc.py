@@ -2,6 +2,8 @@
 
 import os
 import shutil
+import subprocess
+import sys
 import tempfile
 
 import pytest
@@ -631,6 +633,21 @@ def test_include_dirs_resolves_cross_directory_include():
         shutil.rmtree(include_dir)
 
 
+def test_parser_rejects_pre_11_pyslang():
+    script = (
+        "import sys, pyslang\n"
+        "del pyslang.parsing\n"
+        "try:\n"
+        "    import svdoc.parser\n"
+        "    sys.exit(1)\n"
+        "except ImportError as e:\n"
+        "    assert 'pyslang>=11.0.0' in str(e)\n"
+        "    sys.exit(0)\n"
+    )
+    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+
+
 if __name__ == "__main__":
     test_fifo_example()
     test_fix_fills_gaps_and_is_idempotent()
@@ -646,4 +663,5 @@ if __name__ == "__main__":
     test_build_site_generates_working_cross_links()
     test_build_hierarchy_generate_and_params()
     test_render_hierarchy_collapses_interface_instances_into_modport_edges()
+    test_parser_rejects_pre_11_pyslang()
     print("ok")
