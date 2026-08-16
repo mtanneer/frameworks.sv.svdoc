@@ -34,13 +34,12 @@ language = "en"
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = "sphinx_rtd_theme"
+html_theme = "furo"
 html_static_path = ["_static"]
 html_extra_path = ["examples"]
 
-html_context = {
-    "display_github": True,
-    "github_user": "mtanneer",
-    "github_repo": "frameworks.sv.svdoc",
-    "github_version": "main/docs/",
+html_theme_options = {
+    "source_repository": "https://github.com/mtanneer/frameworks.sv.svdoc",
+    "source_branch": "main",
+    "source_directory": "docs/",
 }
