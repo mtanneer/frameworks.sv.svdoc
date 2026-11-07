@@ -1,0 +1,8 @@
+# devhub project manifest. Schema: ~/dev/tools.all.devhub/SCHEMA.md
+status = "maintenance"
+purpose = "pydoc-style doc generator for SystemVerilog RTL via pyslang, outputs Markdown or HTML"
+tags = ["hardware", "docs"]
+deploy = "pypi, github pages"
+depends_on = []
+next = ["Hierarchy diagrams: collapse interface instances into modport connections"]
+# evidence: README.md, _batch2.json
