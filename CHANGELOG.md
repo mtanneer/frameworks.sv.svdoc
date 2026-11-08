@@ -3,6 +3,15 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.0] - 2026-11-07
+
+### Changed
+- **Breaking:** requires Python >=3.11 (3.9 and 3.10 are EOL; pyslang 12 needs >=3.11)
+- CI tests 3.11-3.14
+
+### Added
+- Tag-driven release: pushing `vX.Y.Z` publishes to PyPI via trusted publishing and creates the GitHub release
+
 ## [0.3.0] - 2026-07-12
 
 ### Added
