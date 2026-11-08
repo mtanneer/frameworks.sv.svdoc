@@ -1,7 +1,7 @@
 """Doc IR (v1): module-level only. See PLAN.md Phase 1."""
 
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Optional
 
 
 @dataclass
@@ -18,9 +18,9 @@ class Param:
 
     name: str
     type: str
-    default: Optional[str]
-    doc: Optional[str]
-    type_ref: Optional[str] = None
+    default: str | None
+    doc: str | None
+    type_ref: str | None = None
 
 
 @dataclass
@@ -46,8 +46,8 @@ class Port:
     name: str
     direction: str
     type: str
-    doc: Optional[str]
-    type_ref: Optional[str] = None
+    doc: str | None
+    type_ref: str | None = None
     modport_preview: Optional["Modport"] = None
 
 
@@ -56,9 +56,9 @@ class ModuleDoc:
     """Doc IR for a single SystemVerilog module."""
 
     name: str
-    doc: Optional[str]
-    params: List[Param] = field(default_factory=list)
-    ports: List[Port] = field(default_factory=list)
+    doc: str | None
+    params: list[Param] = field(default_factory=list)
+    ports: list[Port] = field(default_factory=list)
 
 
 @dataclass
@@ -67,7 +67,7 @@ class Signal:
 
     name: str
     type: str
-    doc: Optional[str]
+    doc: str | None
 
 
 @dataclass
@@ -75,8 +75,8 @@ class ModportPortGroup:
     """One direction-grouped clause within a modport, e.g. ``output valid, data``."""
 
     direction: str
-    signals: List[str]
-    doc: Optional[str]
+    signals: list[str]
+    doc: str | None
 
 
 @dataclass
@@ -84,8 +84,8 @@ class Modport:
     """A single ``modport`` declaration inside an interface."""
 
     name: str
-    doc: Optional[str]
-    port_groups: List[ModportPortGroup] = field(default_factory=list)
+    doc: str | None
+    port_groups: list[ModportPortGroup] = field(default_factory=list)
 
 
 @dataclass
@@ -93,11 +93,11 @@ class InterfaceDoc:
     """Doc IR for a single SystemVerilog interface, including its modports."""
 
     name: str
-    doc: Optional[str]
-    params: List[Param] = field(default_factory=list)
-    ports: List[Port] = field(default_factory=list)
-    signals: List[Signal] = field(default_factory=list)
-    modports: List[Modport] = field(default_factory=list)
+    doc: str | None
+    params: list[Param] = field(default_factory=list)
+    ports: list[Port] = field(default_factory=list)
+    signals: list[Signal] = field(default_factory=list)
+    modports: list[Modport] = field(default_factory=list)
 
 
 @dataclass
@@ -105,8 +105,8 @@ class EnumValue:
     """A single named value within an ``enum`` typedef."""
 
     name: str
-    value: Optional[str]
-    doc: Optional[str]
+    value: str | None
+    doc: str | None
 
 
 @dataclass
@@ -115,7 +115,7 @@ class StructField:
 
     name: str
     type: str
-    doc: Optional[str]
+    doc: str | None
 
 
 @dataclass
@@ -132,12 +132,12 @@ class Typedef:
     """
 
     name: str
-    doc: Optional[str]
+    doc: str | None
     kind: str
-    base_type: Optional[str] = None
-    alias_type: Optional[str] = None
-    values: List[EnumValue] = field(default_factory=list)
-    fields: List[StructField] = field(default_factory=list)
+    base_type: str | None = None
+    alias_type: str | None = None
+    values: list[EnumValue] = field(default_factory=list)
+    fields: list[StructField] = field(default_factory=list)
 
 
 @dataclass
@@ -150,10 +150,10 @@ class Subroutine:
     """
 
     name: str
-    doc: Optional[str]
+    doc: str | None
     kind: str
-    return_type: Optional[str] = None
-    args: List[Port] = field(default_factory=list)
+    return_type: str | None = None
+    args: list[Port] = field(default_factory=list)
 
 
 @dataclass
@@ -161,9 +161,9 @@ class PackageDoc:
     """Doc IR for a single SystemVerilog package: its typedefs and subroutines."""
 
     name: str
-    doc: Optional[str]
-    typedefs: List[Typedef] = field(default_factory=list)
-    subroutines: List[Subroutine] = field(default_factory=list)
+    doc: str | None
+    typedefs: list[Typedef] = field(default_factory=list)
+    subroutines: list[Subroutine] = field(default_factory=list)
 
 
 @dataclass
@@ -189,9 +189,9 @@ class PortConnection:
     """
 
     name: str
-    expr: Optional[str]
-    interface_instance: Optional[str] = None
-    modport: Optional[str] = None
+    expr: str | None
+    interface_instance: str | None = None
+    modport: str | None = None
 
 
 @dataclass
@@ -212,7 +212,7 @@ class Instance:
     path: str
     name: str
     module: str
-    params: List[ParamValue] = field(default_factory=list)
-    connections: List[PortConnection] = field(default_factory=list)
-    children: List["Instance"] = field(default_factory=list)
+    params: list[ParamValue] = field(default_factory=list)
+    connections: list[PortConnection] = field(default_factory=list)
+    children: list["Instance"] = field(default_factory=list)
     is_interface: bool = False

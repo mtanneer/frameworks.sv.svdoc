@@ -1,5 +1,4 @@
-.PHONY: help install lint test check build twine-check smoke-test verify \
-        publish-pypi gh-release release clean
+.PHONY: help install lint test check build twine-check smoke-test verify release clean
 
 VENV := .venv/bin
 VERSION := $(shell $(VENV)/python -c "import tomllib,sys; sys.stdout.write(tomllib.load(open('pyproject.toml','rb'))['project']['version'])" 2>/dev/null || \
@@ -17,9 +16,7 @@ help:
 	@echo "  make twine-check   validate built artifacts' metadata"
 	@echo "  make smoke-test    install the built wheel into a throwaway venv, run svdoc"
 	@echo "  make verify        check + build + twine-check + smoke-test (everything short of publishing)"
-	@echo "  make publish-pypi  upload dist/ to PyPI (irreversible -- asks for confirmation)"
-	@echo "  make gh-release    tag vVERSION and create a GitHub release with dist/ attached"
-	@echo "  make release       verify, then publish-pypi, then gh-release, in order"
+	@echo "  make release       verify, then tag vVERSION + push; release.yml publishes to PyPI + GitHub
 	@echo "  make clean         remove dist/, build/, egg-info"
 
 install:
@@ -54,14 +51,6 @@ smoke-test: build
 verify: check twine-check smoke-test
 	@echo "verify passed for v$(VERSION) -- dist/ is ready to publish"
 
-publish-pypi: verify
-	@echo "About to upload v$(VERSION) to PyPI. This is IRREVERSIBLE."
-	@read -p "Type the version number ($(VERSION)) to confirm: " confirm && [ "$$confirm" = "$(VERSION)" ] || (echo "aborted"; exit 1)
-	TWINE_USERNAME=__token__ TWINE_PASSWORD=$$(security find-generic-password -s "pypi-token" -w) \
-		$(VENV)/python -m twine upload $(WHEEL) $(SDIST)
-
-gh-release:
-	gh release create v$(VERSION) $(WHEEL) $(SDIST) --title "v$(VERSION)" --generate-notes
-
-release: publish-pypi gh-release
-	@echo "v$(VERSION) released to PyPI and GitHub"
+release: verify
+	@read -p "Tag and push v$(VERSION) (CI publishes to PyPI + GitHub)? Type version to confirm: " c && [ "$$c" = "$(VERSION)" ] || (echo aborted; exit 1)
+	git tag v$(VERSION) && git push origin v$(VERSION)

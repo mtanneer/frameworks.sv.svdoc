@@ -3,7 +3,6 @@ Phase 2 (interfaces/modports).
 """
 
 import re
-from typing import Optional
 
 import pyslang
 
@@ -43,7 +42,7 @@ _DOC_KINDS = (
 )
 
 
-def _source_manager(include_dirs: Optional[list] = None) -> pyslang.SourceManager:
+def _source_manager(include_dirs: list | None = None) -> pyslang.SourceManager:
     """Build a fresh SourceManager, optionally registered with directories to
     search for ```include`` targets that don't live next to the including
     file (e.g. a shared ``include/`` dir separate from per-module ``source/``
@@ -65,7 +64,7 @@ def _clean(text: str) -> str:
     return "\n".join(ln.strip() for ln in lines).strip()
 
 
-def _leading_doc(node) -> Optional[str]:
+def _leading_doc(node) -> str | None:
     """A node's own doc comment is the LAST block/line comment in its leading
     trivia -- an earlier one may belong to a preceding sibling's trailing
     ///< comment (see _trailing_doc), so take the one closest to the node."""
@@ -84,7 +83,7 @@ def _type_str(node) -> str:
     return " ".join(text.split())
 
 
-def _trailing_doc(next_node) -> Optional[str]:
+def _trailing_doc(next_node) -> str | None:
     """Doxygen ///< trailing comments attach as leading trivia on the *next*
     item in the list (see Phase 0 spike findings in PLAN.md)."""
     tok = next_node.getFirstToken() if hasattr(next_node, "getFirstToken") else next_node
@@ -148,7 +147,7 @@ def _find_declaration(tree, kind):
     return next(m for m in tree.root.members if m.kind == kind)
 
 
-def parse_module(path: str, include_dirs: Optional[list] = None) -> ModuleDoc:
+def parse_module(path: str, include_dirs: list | None = None) -> ModuleDoc:
     """Parse a ``.sv`` file containing a single module declaration.
 
     :param path: Path to the ``.sv`` file. Only the first module found in the
@@ -178,7 +177,7 @@ def parse_module(path: str, include_dirs: Optional[list] = None) -> ModuleDoc:
     )
 
 
-def parse_file(path: str, include_dirs: Optional[list] = None):
+def parse_file(path: str, include_dirs: list | None = None):
     """Parse a ``.sv`` file containing a single module, interface, or package.
 
     Dispatches to :func:`parse_module`, :func:`parse_interface`, or
@@ -203,7 +202,7 @@ def parse_file(path: str, include_dirs: Optional[list] = None):
     return parse_module(path, include_dirs)
 
 
-def resolve_types(doc, paths: list, include_dirs: Optional[list] = None) -> None:
+def resolve_types(doc, paths: list, include_dirs: list | None = None) -> None:
     """Resolve cross-file port types by elaborating a full ``Compilation``.
 
     Given a :class:`~svdoc.ir.ModuleDoc` (or :class:`~svdoc.ir.InterfaceDoc`)
@@ -293,7 +292,7 @@ def resolve_types(doc, paths: list, include_dirs: Optional[list] = None) -> None
                 )
 
 
-def _port_connection_text(inst_sym, port) -> Optional[str]:
+def _port_connection_text(inst_sym, port) -> str | None:
     conn = inst_sym.getPortConnection(port)
     if conn is None or conn.expression is None:
         return None
@@ -353,7 +352,7 @@ def _build_instance(inst_sym) -> Instance:
     return instance
 
 
-def build_hierarchy(module_name: str, paths: list, include_dirs: Optional[list] = None) -> Instance:
+def build_hierarchy(module_name: str, paths: list, include_dirs: list | None = None) -> Instance:
     """Elaborate ``module_name`` as top and build its instance hierarchy.
 
     Walks the elaborated instance tree (via ``Symbol.visit``), including
@@ -391,7 +390,7 @@ def build_hierarchy(module_name: str, paths: list, include_dirs: Optional[list] 
     return _build_instance(top)
 
 
-def parse_interface(path: str, include_dirs: Optional[list] = None) -> InterfaceDoc:
+def parse_interface(path: str, include_dirs: list | None = None) -> InterfaceDoc:
     """Parse a ``.sv`` file containing a single interface declaration.
 
     :param path: Path to the ``.sv`` file. Only the first interface found in
@@ -514,7 +513,7 @@ def _parse_subroutine(m, kind: str) -> Subroutine:
     )
 
 
-def parse_package(path: str, include_dirs: Optional[list] = None) -> PackageDoc:
+def parse_package(path: str, include_dirs: list | None = None) -> PackageDoc:
     """Parse a ``.sv`` file containing a single package declaration.
 
     :param path: Path to the ``.sv`` file. Only the first package found in

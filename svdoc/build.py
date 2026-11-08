@@ -7,7 +7,6 @@ whatever directories the source files happen to live in.
 import pathlib
 import re
 from html import escape
-from typing import Optional
 
 from . import render_html
 from .ir import InterfaceDoc, ModuleDoc, PackageDoc
@@ -35,7 +34,7 @@ _KIND_LABELS = {
 }
 
 
-def build_site(paths: list, out_dir: str, include_dirs: Optional[list] = None) -> str:
+def build_site(paths: list, out_dir: str, include_dirs: list | None = None) -> str:
     """Parse every file in ``paths`` and write one HTML page per construct
     into a single flat ``out_dir``, plus an ``index.html`` linking to all of
     them. Because every page lands in the same directory, the convention-based
