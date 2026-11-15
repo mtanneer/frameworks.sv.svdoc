@@ -1,6 +1,15 @@
 """Markdown renderer: Doc IR -> Obsidian-friendly .md string."""
 
-from .ir import ClassDoc, InterfaceDoc, ModuleDoc, PackageDoc
+from .ir import ClassDoc, Instance, InterfaceDoc, ModuleDoc, PackageDoc
+from .render_diagram import render_hierarchy_mermaid, render_module_symbol_mermaid
+
+
+def _diagram_section(mod: ModuleDoc, hierarchy: Instance | None) -> list:
+    """Mermaid fenced blocks (render natively in Obsidian and GitHub)."""
+    lines = ["## Diagram", "", "```mermaid", render_module_symbol_mermaid(mod).rstrip(), "```", ""]
+    if hierarchy is not None and hierarchy.children:
+        lines += ["## Hierarchy", "", "```mermaid", render_hierarchy_mermaid(hierarchy).rstrip(), "```", ""]
+    return lines
 
 
 def _type_cell(type_str: str, type_ref: str) -> str:
@@ -43,13 +52,20 @@ def _ports_section(ports) -> list:
     return lines
 
 
-def render(mod: ModuleDoc) -> str:
-    """Render a :class:`~svdoc.ir.ModuleDoc` to an Obsidian-friendly Markdown string."""
+def render(mod: ModuleDoc, diagrams: bool = False, hierarchy: Instance | None = None) -> str:
+    """Render a :class:`~svdoc.ir.ModuleDoc` to an Obsidian-friendly Markdown string.
+
+    :param diagrams: Embed the module symbol diagram (and ``hierarchy`` if
+        given and it has children) as Mermaid fenced blocks.
+    :param hierarchy: Root :class:`~svdoc.ir.Instance` from ``build_hierarchy``.
+    """
     lines = [f"# Module: `{mod.name}`", ""]
     if mod.doc:
         lines += [mod.doc, ""]
     lines += _params_section(mod.params)
     lines += _ports_section(mod.ports)
+    if diagrams:
+        lines += _diagram_section(mod, hierarchy)
     return "\n".join(lines)
 
 

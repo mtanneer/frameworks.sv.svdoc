@@ -6,6 +6,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Diagrams embedded in doc pages: `svdoc build` adds a Mermaid module symbol
+  diagram and, for modules with instances, a hierarchy diagram to module pages
+  (md: fenced `mermaid` blocks; html: `<pre class="mermaid">` + pinned
+  Mermaid 11.4.1 CDN script). Opt out with `--no-diagrams`; `svdoc file.sv
+  --out md|html --diagrams` embeds the symbol diagram (#24)
 - Markdown output cross-links: package/interface-typed ports and parameters
   render as relative links (`[pkg::type](pkg.md#type)`), and
   `svdoc build --format md` writes a flat site of `.md` pages plus an

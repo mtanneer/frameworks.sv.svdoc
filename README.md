@@ -23,8 +23,12 @@ documentation — no manual editing required.
 - **Cross-file type resolution** — a module's port typed from a package in
   another file resolves to its fully-qualified `package::type` name
 
-Not yet supported: UVM-specific constructs, instantiation hierarchy, block diagrams, full
-multi-file `` `include`` resolution.
+- **Diagrams** — Mermaid module symbol and instance-hierarchy diagrams,
+  embedded in module pages by `svdoc build` (opt out with `--no-diagrams`);
+  HTML pages load Mermaid from a pinned jsDelivr CDN script and fall back to
+  the readable Mermaid source offline
+
+Not yet supported: UVM-specific constructs.
 
 ## Install
 
@@ -55,6 +59,12 @@ svdoc build my_module.sv my_interface.sv my_package.sv --out-dir site/
 
 # same, but cross-linked Markdown pages + index.md of [[wikilinks]] (Obsidian)
 svdoc build my_module.sv my_interface.sv my_package.sv --out-dir site/ --format md
+
+# build embeds Mermaid diagrams in module pages by default; opt out with
+svdoc build my_module.sv my_interface.sv --out-dir site/ --no-diagrams
+
+# single file: embed the module symbol diagram too
+svdoc my_module.sv --out md --diagrams
 ```
 
 ## Example output
