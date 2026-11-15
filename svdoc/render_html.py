@@ -8,7 +8,24 @@ way. Nothing here checks that the target page or anchor actually exists.
 
 from html import escape
 
-from .ir import ClassDoc, InterfaceDoc, ModuleDoc, PackageDoc
+from .ir import ClassDoc, Instance, InterfaceDoc, ModuleDoc, PackageDoc
+from .render_diagram import render_hierarchy_mermaid, render_module_symbol_mermaid
+
+# Pinned Mermaid ESM build. Without JS (or offline) the <pre> shows the
+# readable Mermaid source as a fallback.
+MERMAID_SCRIPT = (
+    '<script type="module">import mermaid from '
+    '"https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs";'
+    "mermaid.initialize({startOnLoad:true});</script>"
+)
+
+
+def _diagram_section(mod: ModuleDoc, hierarchy: Instance | None) -> list:
+    lines = ["<h2>Diagram</h2>", f'<pre class="mermaid">{escape(render_module_symbol_mermaid(mod))}</pre>']
+    if hierarchy is not None and hierarchy.children:
+        lines += ["<h2>Hierarchy</h2>", f'<pre class="mermaid">{escape(render_hierarchy_mermaid(hierarchy))}</pre>']
+    return lines + [MERMAID_SCRIPT]
+
 
 _STYLE = """
 body { font-family: -apple-system, sans-serif; max-width: 60rem; margin: 2rem auto; padding: 0 1rem; }
@@ -94,13 +111,21 @@ def _ports_section(ports) -> list:
     return lines
 
 
-def render(mod: ModuleDoc) -> str:
-    """Render a :class:`~svdoc.ir.ModuleDoc` to a self-contained HTML page."""
+def render(mod: ModuleDoc, diagrams: bool = False, hierarchy: Instance | None = None) -> str:
+    """Render a :class:`~svdoc.ir.ModuleDoc` to a self-contained HTML page.
+
+    :param diagrams: Embed the module symbol diagram (and ``hierarchy`` if
+        given and it has children) as ``<pre class="mermaid">`` blocks plus a
+        pinned Mermaid CDN script.
+    :param hierarchy: Root :class:`~svdoc.ir.Instance` from ``build_hierarchy``.
+    """
     lines = [f"<h1>Module: <code>{escape(mod.name)}</code></h1>"]
     if mod.doc:
         lines.append(f"<p>{escape(mod.doc)}</p>")
     lines += _params_section(mod.params)
     lines += _ports_section(mod.ports)
+    if diagrams:
+        lines += _diagram_section(mod, hierarchy)
     return page(f"Module: {mod.name}", lines)
 
 

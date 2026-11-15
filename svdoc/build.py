@@ -10,7 +10,7 @@ from html import escape
 
 from . import render_html, render_md
 from .ir import ClassDoc, InterfaceDoc, ModuleDoc, PackageDoc
-from .parser import parse_file, resolve_types
+from .parser import build_hierarchy, parse_file, resolve_types
 
 _UNSAFE_NAME_CHARS = re.compile(r"[^\w.-]")
 
@@ -42,7 +42,9 @@ _KIND_LABELS = {
 }
 
 
-def build_site(paths: list, out_dir: str, include_dirs: list | None = None, fmt: str = "html") -> str:
+def build_site(
+    paths: list, out_dir: str, include_dirs: list | None = None, fmt: str = "html", diagrams: bool = True
+) -> str:
     """Parse every file in ``paths`` and write one HTML page per construct
     into a single flat ``out_dir``, plus an ``index.html`` linking to all of
     them. Because every page lands in the same directory, the convention-based
@@ -59,6 +61,9 @@ def build_site(paths: list, out_dir: str, include_dirs: list | None = None, fmt:
     :param fmt: ``"html"`` (default) or ``"md"``. Markdown mode writes
         ``<name>.md`` pages cross-linked by relative links plus an
         ``index.md`` of ``[[wikilinks]]`` (Obsidian-friendly).
+    :param diagrams: Embed a module symbol diagram in every module page, plus
+        an instance-hierarchy diagram for modules that instantiate others
+        (Mermaid; ``False`` to opt out).
     :returns: Path to the written index file.
     :raises ValueError: If any file fails to parse cleanly.
     """
@@ -70,11 +75,17 @@ def build_site(paths: list, out_dir: str, include_dirs: list | None = None, fmt:
         if isinstance(doc, ModuleDoc):
             resolve_types(doc, paths, include_dirs)
 
+    def render_doc(doc, renderers):
+        if diagrams and isinstance(doc, ModuleDoc):
+            hierarchy = build_hierarchy(doc.name, paths, include_dirs)
+            return renderers[ModuleDoc](doc, diagrams=True, hierarchy=hierarchy)
+        return renderers[type(doc)](doc)
+
     if fmt == "md":
         md = ["# svdoc site", ""]
         for doc in sorted(docs, key=lambda d: (_KIND_LABELS[type(d)], d.name)):
             name = _safe_page_name(doc.name)
-            (out / f"{name}.md").write_text(_MD_RENDERERS[type(doc)](doc))
+            (out / f"{name}.md").write_text(render_doc(doc, _MD_RENDERERS))
             md.append(f"- {_KIND_LABELS[type(doc)]}: [[{name}]]")
         index_path = out / "index.md"
         index_path.write_text("\n".join(md) + "\n")
@@ -83,7 +94,7 @@ def build_site(paths: list, out_dir: str, include_dirs: list | None = None, fmt:
     index_lines = ["<h1>svdoc site</h1>", "<ul>"]
     for doc in sorted(docs, key=lambda d: (_KIND_LABELS[type(d)], d.name)):
         page_name = f"{_safe_page_name(doc.name)}.html"
-        (out / page_name).write_text(_RENDERERS[type(doc)](doc))
+        (out / page_name).write_text(render_doc(doc, _RENDERERS))
         label = _KIND_LABELS[type(doc)]
         index_lines.append(f'<li>{label}: <a href="{escape(page_name)}">{escape(doc.name)}</a>')
         if isinstance(doc, PackageDoc) and doc.classes:

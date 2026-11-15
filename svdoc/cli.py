@@ -55,7 +55,10 @@ def _run_single(args):
         out_path.write_text(text)
         print(f"wrote {out_path}")
     elif args.out:
-        text = _RENDERERS[args.out][type(doc)](doc)
+        if args.diagrams and isinstance(doc, ModuleDoc) and args.out in ("md", "html"):
+            text = _RENDERERS[args.out][ModuleDoc](doc, diagrams=True)
+        else:
+            text = _RENDERERS[args.out][type(doc)](doc)
         out_path = pathlib.Path(args.file).with_suffix(_EXTENSIONS[args.out])
         out_path.write_text(text)
         print(f"wrote {out_path}")
@@ -64,7 +67,7 @@ def _run_single(args):
 
 
 def _run_build(args):
-    index_path = build_site(args.files, args.out_dir, args.include_dir, args.format)
+    index_path = build_site(args.files, args.out_dir, args.include_dir, args.format, not args.no_diagrams)
     print(f"wrote {len(args.files)} file(s) to a site at {index_path}")
 
 
@@ -86,6 +89,7 @@ def _build_parser():
         default="html",
         help="site format: linked HTML pages (default) or cross-linked Markdown with an index.md",
     )
+    ap.add_argument("--no-diagrams", action="store_true", help="omit embedded Mermaid diagrams from module pages")
     ap.add_argument(
         "--include-dir",
         action="append",
@@ -136,6 +140,12 @@ def _single_parser():
         choices=["md", "html", "mmd", "dot"],
         help="write rendered doc to a file in this format instead of printing to stdout "
         "(mmd/dot render a module symbol diagram instead of docs, modules only)",
+    )
+    ap.add_argument(
+        "--diagrams",
+        action="store_true",
+        help="with --out md/html on a module, embed its Mermaid symbol diagram "
+        "(`svdoc build` embeds diagrams by default, plus hierarchy)",
     )
     ap.add_argument(
         "--fix",

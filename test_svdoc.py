@@ -807,3 +807,29 @@ def test_parse_class_in_package_and_build_site(tmp_path):
     text = Path(index).read_text(encoding="utf-8")
     assert 'href="p.html#pkt"' in text and 'href="solo.html"' in text
     assert (tmp_path / "out" / "solo.html").exists()
+
+
+def _diagram_site(fmt, **kw):
+    d = tempfile.mkdtemp()
+    top, leaf, out = (os.path.join(d, n) for n in ("top.sv", "leaf.sv", "site"))
+    pathlib.Path(leaf).write_text("module leaf (input logic a);\nendmodule\n")
+    pathlib.Path(top).write_text("module top (input logic x);\n    leaf u_leaf (.a(x));\nendmodule\n")
+    build_site([top, leaf], out, fmt=fmt, **kw)
+    return pathlib.Path(out)
+
+
+def test_build_site_embeds_diagrams_md():
+    out = _diagram_site("md")
+    top, leaf = (out / "top.md").read_text(), (out / "leaf.md").read_text()
+    assert "## Diagram" in top and "```mermaid" in top and "flowchart LR" in top
+    assert "## Hierarchy" in top and "flowchart TD" in top
+    assert "## Diagram" in leaf and "## Hierarchy" not in leaf  # leaf has no children
+
+
+def test_build_site_embeds_diagrams_html_and_opt_out():
+    out = _diagram_site("html")
+    top = (out / "top.html").read_text()
+    assert '<pre class="mermaid">' in top and "mermaid@11.4.1" in top
+    assert "<h2>Hierarchy</h2>" in top
+    off = (_diagram_site("html", diagrams=False) / "top.html").read_text()
+    assert "mermaid" not in off
