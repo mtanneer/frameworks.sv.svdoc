@@ -3,7 +3,11 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.0.0] - 2026-11-15
+
+First stable release. The public CLI, Python API and IR schema are now
+covered by semantic versioning -- see `docs/stability.rst`. The
+`Development Status` classifier moves from Alpha to Production/Stable (#30).
 
 ### Added
 - `docs/stability.rst`: the 1.0 stable surface (CLI, Python API, IR), what is
