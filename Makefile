@@ -1,4 +1,4 @@
-.PHONY: help install lint test check build twine-check smoke-test verify release clean
+.PHONY: help install lint test check corpus-smokebuild twine-check smoke-test verify release clean
 
 VENV := .venv/bin
 VERSION := $(shell $(VENV)/python -c "import tomllib,sys; sys.stdout.write(tomllib.load(open('pyproject.toml','rb'))['project']['version'])" 2>/dev/null || \
@@ -10,7 +10,7 @@ help:
 	@echo "svdoc release Makefile (version: $(VERSION))"
 	@echo ""
 	@echo "  make lint          ruff check"
-	@echo "  make test          pytest with coverage (matches CI's --cov-fail-under=80)"
+	@echo "  make test          pytest with coverage (matches CI's --cov-fail-under=82)"
 	@echo "  make check         lint + test"
 	@echo "  make build         clean, build sdist+wheel into dist/"
 	@echo "  make twine-check   validate built artifacts' metadata"
@@ -27,9 +27,15 @@ lint:
 	$(VENV)/ruff check .
 
 test:
-	$(VENV)/python -m pytest --cov=svdoc --cov-report=term-missing --cov-fail-under=80
+	$(VENV)/python -m pytest --cov=svdoc --cov-report=term-missing --cov-fail-under=82
 
 check: lint test
+
+# Not part of check/CI: smoke svdoc over a real-world corpus, e.g.
+#   git clone --depth 1 https://github.com/lowRISC/ibex tmp/corpora/ibex
+#   make corpus-smoke DIR=tmp/corpora/ibex/rtl INC="--include-dir tmp/corpora/ibex/vendor/lowrisc_ip/ip/prim/rtl"
+corpus-smoke:
+	$(VENV)/python -I scripts/corpus_smoke.py $(DIR) $(INC)
 
 clean:
 	rm -rf dist build svdoc.egg-info

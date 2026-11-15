@@ -31,5 +31,8 @@ dev = ["ruff", "pytest", "pytest-cov"]
 [project.scripts]
 svdoc = "svdoc.cli:main"
 
+[tool.pytest.ini_options]
+testpaths = ["test_svdoc.py"]  # keep cloned corpora under tmp/ out of collection
+
 [tool.setuptools]
 packages = ["svdoc"]

@@ -57,6 +57,18 @@ def _source_manager(include_dirs: list | None = None) -> pyslang.SourceManager:
     return sm
 
 
+def syntax_errors(tree) -> list:
+    """Error-severity diagnostics only. Warnings (e.g. ``IgnoredMacroPaste``,
+    common in real RTL using assertion macros) must not reject a file."""
+    return [d for d in tree.diagnostics if d.isError()]
+
+
+def diag_text(tree) -> str:
+    """Human-readable slang errors for ``tree`` (file:line:col + source
+    excerpt), for error messages -- the raw ``Diagnostic`` objects have no useful repr."""
+    return "\n" + pyslang.DiagnosticEngine.reportAll(tree.sourceManager, syntax_errors(tree))
+
+
 def _clean(text: str) -> str:
     """Strip comment delimiters (/** */, ///<, //) and leading '*'/whitespace."""
     text = text.strip()
@@ -166,8 +178,8 @@ def parse_module(path: str, include_dirs: list | None = None) -> ModuleDoc:
     # stale read of a file that was modified earlier in this process
     # (e.g. by --fix, or in tests that fix then re-parse the same path).
     tree = pyslang.syntax.SyntaxTree.fromFile(path, _source_manager(include_dirs))
-    if tree.diagnostics:
-        raise ValueError(f"parse errors in {path}: {list(tree.diagnostics)}")
+    if syntax_errors(tree):
+        raise ValueError(f"parse errors in {path}: {diag_text(tree)}")
 
     mod = _find_declaration(tree, pyslang.syntax.SyntaxKind.ModuleDeclaration)
     header = mod.header
@@ -194,13 +206,13 @@ def parse_file(path: str, include_dirs: list | None = None):
     :raises ValueError: If the file fails to parse cleanly.
     """
     tree = pyslang.syntax.SyntaxTree.fromFile(path, _source_manager(include_dirs))
-    if tree.diagnostics:
-        raise ValueError(f"parse errors in {path}: {list(tree.diagnostics)}")
-    kind = next(
-        m.kind
-        for m in tree.root.members
-        if hasattr(m, "header") or hasattr(m, "members") or m.kind == pyslang.syntax.SyntaxKind.ClassDeclaration
-    )
+    if syntax_errors(tree):
+        raise ValueError(f"parse errors in {path}: {diag_text(tree)}")
+    sk = pyslang.syntax.SyntaxKind
+    documented = (sk.ModuleDeclaration, sk.InterfaceDeclaration, sk.PackageDeclaration, sk.ClassDeclaration)
+    kind = next((m.kind for m in tree.root.members if m.kind in documented), None)
+    if kind is None:  # e.g. everything `ifdef'd out, bind-only, or a program-only file
+        raise ValueError(f"no module, interface, package, or class declaration found in {path}")
     if kind == pyslang.syntax.SyntaxKind.ClassDeclaration:
         return parse_class(path, include_dirs)
     if kind == pyslang.syntax.SyntaxKind.InterfaceDeclaration:
@@ -248,8 +260,8 @@ def resolve_types(doc, paths: list, include_dirs: list | None = None) -> None:
     comp = pyslang.ast.Compilation(bag)
     for p in paths:
         tree = pyslang.syntax.SyntaxTree.fromFile(p, sm)
-        if tree.diagnostics:
-            raise ValueError(f"parse errors in {p}: {list(tree.diagnostics)}")
+        if syntax_errors(tree):
+            raise ValueError(f"parse errors in {p}: {diag_text(tree)}")
         comp.addSyntaxTree(tree)
 
     inst = next((i for i in comp.getRoot().topInstances if i.name == doc.name), None)
@@ -388,8 +400,8 @@ def build_hierarchy(module_name: str, paths: list, include_dirs: list | None = N
     comp = pyslang.ast.Compilation(bag)
     for p in paths:
         tree = pyslang.syntax.SyntaxTree.fromFile(p, sm)
-        if tree.diagnostics:
-            raise ValueError(f"parse errors in {p}: {list(tree.diagnostics)}")
+        if syntax_errors(tree):
+            raise ValueError(f"parse errors in {p}: {diag_text(tree)}")
         comp.addSyntaxTree(tree)
 
     top = next((i for i in comp.getRoot().topInstances if i.name == module_name), None)
@@ -410,8 +422,8 @@ def parse_interface(path: str, include_dirs: list | None = None) -> InterfaceDoc
     :raises ValueError: If the file fails to parse cleanly.
     """
     tree = pyslang.syntax.SyntaxTree.fromFile(path, _source_manager(include_dirs))
-    if tree.diagnostics:
-        raise ValueError(f"parse errors in {path}: {list(tree.diagnostics)}")
+    if syntax_errors(tree):
+        raise ValueError(f"parse errors in {path}: {diag_text(tree)}")
 
     iface = _find_declaration(tree, pyslang.syntax.SyntaxKind.InterfaceDeclaration)
     header = iface.header
@@ -533,8 +545,8 @@ def parse_package(path: str, include_dirs: list | None = None) -> PackageDoc:
     :raises ValueError: If the file fails to parse cleanly.
     """
     tree = pyslang.syntax.SyntaxTree.fromFile(path, _source_manager(include_dirs))
-    if tree.diagnostics:
-        raise ValueError(f"parse errors in {path}: {list(tree.diagnostics)}")
+    if syntax_errors(tree):
+        raise ValueError(f"parse errors in {path}: {diag_text(tree)}")
 
     pkg = _find_declaration(tree, pyslang.syntax.SyntaxKind.PackageDeclaration)
     doc = PackageDoc(name=pkg.header.name.valueText, doc=_leading_doc(pkg))
@@ -670,6 +682,6 @@ def parse_class(path: str, include_dirs: list | None = None) -> ClassDoc:
     :raises ValueError: If the file fails to parse cleanly.
     """
     tree = pyslang.syntax.SyntaxTree.fromFile(path, _source_manager(include_dirs))
-    if tree.diagnostics:
-        raise ValueError(f"parse errors in {path}: {list(tree.diagnostics)}")
+    if syntax_errors(tree):
+        raise ValueError(f"parse errors in {path}: {diag_text(tree)}")
     return _parse_class_node(_find_declaration(tree, pyslang.syntax.SyntaxKind.ClassDeclaration))

@@ -18,7 +18,7 @@ jobs:
           v=$(grep -m1 '^version' pyproject.toml | cut -d'"' -f2)
           [ "v$v" = "$GITHUB_REF_NAME" ] || { echo "tag $GITHUB_REF_NAME != v$v"; exit 1; }
       - run: pip install -e ".[dev]" build twine
-      - run: pytest --cov=svdoc --cov-fail-under=80
+      - run: pytest --cov=svdoc --cov-fail-under=82
       - run: python -m build
       - run: twine check dist/*
       - uses: actions/upload-artifact@v4

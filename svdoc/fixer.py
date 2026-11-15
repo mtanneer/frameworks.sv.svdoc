@@ -8,13 +8,20 @@ import tempfile
 
 import pyslang
 
-from .parser import _leading_doc, _trailing_doc
+from .parser import _leading_doc, _source_manager, _trailing_doc, diag_text, syntax_errors
 
 
 def _end_offset(node) -> int:
     """node may be a raw Token (comma, closing paren) or a syntax node."""
     tok = node.getLastToken() if hasattr(node, "getLastToken") else node
     return tok.range.end.offset
+
+
+def _local(node, buf) -> bool:
+    """True if ``node`` lies wholly in source buffer ``buf``. Nodes produced by
+    macro expansion or ``include`` live in other buffers, so their offsets must
+    not be spliced into this file's text."""
+    return node.getFirstToken().range.start.buffer == buf and node.getLastToken().range.end.buffer == buf
 
 
 def _brief_stub(text: bytes, offset: int) -> bytes:
@@ -58,7 +65,10 @@ def _scaffold_package(pkg, text, insertions):
     their args -- mirrors what parse_package reads."""
     kinds = pyslang.syntax.SyntaxKind
     members = list(pkg.members)
+    buf = pkg.getFirstToken().range.start.buffer
     for i, m in enumerate(members):
+        if not _local(m, buf):
+            continue
         next_node = members[i + 1] if i + 1 < len(members) else pkg.endmodule
         if m.kind in (kinds.FunctionDeclaration, kinds.TaskDeclaration):
             _leading_brief(m, text, insertions)
@@ -80,7 +90,7 @@ def _scaffold_package(pkg, text, insertions):
                 _leading_brief(m, text, insertions)
 
 
-def fix_file(path: str) -> bool:
+def fix_file(path: str, include_dirs: list | None = None) -> bool:
     """Scaffold missing doc comments in place, in ``path``, and save the result.
 
     Inserts ``///< TODO`` next to any undocumented port/parameter, and a
@@ -94,9 +104,9 @@ def fix_file(path: str) -> bool:
         fully documented.
     :raises ValueError: If the file fails to parse cleanly.
     """
-    tree = pyslang.syntax.SyntaxTree.fromFile(path, pyslang.SourceManager())
-    if tree.diagnostics:
-        raise ValueError(f"parse errors in {path}: {list(tree.diagnostics)}")
+    tree = pyslang.syntax.SyntaxTree.fromFile(path, _source_manager(include_dirs))
+    if syntax_errors(tree):
+        raise ValueError(f"parse errors in {path}: {diag_text(tree)}")
 
     # pyslang offsets are byte offsets: splice bytes, not str.
     with open(path, "rb") as f:
@@ -108,8 +118,11 @@ def fix_file(path: str) -> bool:
     # their header (params/ports) doc comments identically. Interface bodies
     # (signals/modports) are scaffolded separately below, since modules don't
     # have those constructs.
-    mod = next(m for m in tree.root.members if hasattr(m, "header"))
+    mod = next((m for m in tree.root.members if hasattr(m, "header")), None)
+    if mod is None:
+        raise ValueError(f"no module or interface declaration found in {path}")
     header = mod.header
+    buf = mod.getFirstToken().range.start.buffer
 
     # (offset, text_to_insert), applied back-to-front so earlier offsets stay valid.
     insertions = []
@@ -121,7 +134,7 @@ def fix_file(path: str) -> bool:
     if header.parameters:
         raw = list(header.parameters.declarations)
         for i, node in enumerate(raw):
-            if node.kind != pyslang.syntax.SyntaxKind.ParameterDeclaration:
+            if node.kind != pyslang.syntax.SyntaxKind.ParameterDeclaration or not _local(node, buf):
                 continue
             has_comma = i + 1 < len(raw)
             # trailing ///< doc for this item is leading trivia on the node
@@ -136,7 +149,7 @@ def fix_file(path: str) -> bool:
     if header.ports:
         raw = list(header.ports.ports)
         for i, node in enumerate(raw):
-            if not hasattr(node, "declarator"):
+            if not hasattr(node, "declarator") or not _local(node, buf):
                 continue
             has_comma = i + 1 < len(raw)
             lookup = raw[i + 2] if has_comma and i + 2 < len(raw) else header.ports.closeParen
@@ -147,6 +160,8 @@ def fix_file(path: str) -> bool:
     if mod.kind == pyslang.syntax.SyntaxKind.InterfaceDeclaration:
         members = list(mod.members)
         for i, m in enumerate(members):
+            if not _local(m, buf):
+                continue
             next_node = members[i + 1] if i + 1 < len(members) else mod.endmodule
             if m.kind == pyslang.syntax.SyntaxKind.DataDeclaration and _trailing_doc(next_node) is None:
                 insertions.append((_end_offset(m), _trailing_stub(text, _end_offset(m))))
@@ -166,9 +181,12 @@ def fix_file(path: str) -> bool:
         text = text[:offset] + snippet + text[offset:]
 
     # never write output that doesn't parse cleanly
-    check = pyslang.syntax.SyntaxTree.fromText(text.decode("utf-8"), pyslang.SourceManager())
-    if check.diagnostics:
-        raise ValueError(f"--fix would corrupt {path}: {list(check.diagnostics)}; file left unchanged")
+    # (path= lets `include resolve relative to the file, same as the first parse)
+    check = pyslang.syntax.SyntaxTree.fromText(
+        text.decode("utf-8"), _source_manager(include_dirs), os.path.basename(path), os.path.abspath(path)
+    )
+    if syntax_errors(check):
+        raise ValueError(f"--fix would corrupt {path}: {diag_text(check)}; file left unchanged")
 
     # atomic write: temp file in same dir, then rename
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(os.path.abspath(path)))

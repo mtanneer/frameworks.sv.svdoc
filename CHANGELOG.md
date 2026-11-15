@@ -18,6 +18,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Classes: `ClassDoc`/`ClassProperty` IR, `parse_class`, standalone class files and
   classes inside packages (base class, parameters, properties, methods incl.
   `extern` prototypes), Markdown/HTML renderers and `build` index entries (#25)
+- `scripts/corpus_smoke.py` / `make corpus-smoke DIR=...`: repeatable smoke run over a
+  directory of real-world `.sv` files (parse, render, `--fix` on temp copies). Not in CI (#28)
+
+### Fixed
+- Found running against lowRISC ibex, OpenTitan, PULP common_cells and axi (#28):
+- Warning-severity diagnostics (e.g. `IgnoredMacroPaste` from assertion macros) no longer
+  reject a file; only errors do
+- Files with no module/interface/package (program-only, bind-only, `ifdef`'d out)
+  raise a clear `ValueError` instead of leaking `StopIteration`
+- `--fix` no longer splices macro- or `include`-expanded members' offsets into the wrong
+  place (corrupted OpenTitan `*_cov_if.sv`; the post-fix parse check refused the write)
+- `--fix` accepts `--include-dir` and resolves `include` relative to the file on its
+  safety re-parse
+- Parse-error messages show file:line:col and a source excerpt instead of
+  `<pyslang.Diagnostic object at 0x...>`
 
 ## [0.5.0] - 2026-11-15
 
