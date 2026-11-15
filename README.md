@@ -18,10 +18,12 @@ documentation — no manual editing required.
 - **Modules** — name, parameters, ports, doc comments
 - **Interfaces** — parameters, ports, signals, modports
 - **Packages** — typedefs (enums, packed structs, aliases), functions, tasks
+- **Classes** — standalone or inside a package: base class, parameters,
+  properties, methods (incl. `extern`/`virtual`/`static`)
 - **Cross-file type resolution** — a module's port typed from a package in
   another file resolves to its fully-qualified `package::type` name
 
-Not yet supported: classes/UVM, instantiation hierarchy, block diagrams, full
+Not yet supported: UVM-specific constructs, instantiation hierarchy, block diagrams, full
 multi-file `` `include`` resolution.
 
 ## Install

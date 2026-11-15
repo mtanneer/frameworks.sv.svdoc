@@ -154,16 +154,53 @@ class Subroutine:
     kind: str
     return_type: str | None = None
     args: list[Port] = field(default_factory=list)
+    qualifiers: list[str] = field(default_factory=list)
+
+
+@dataclass
+class ClassProperty:
+    """A data member of a class.
+
+    :ivar qualifiers: Leading qualifiers as written (``"rand"``, ``"local"``,
+        ``"static"``, ...), in source order.
+    """
+
+    name: str
+    type: str
+    doc: str | None
+    qualifiers: list[str] = field(default_factory=list)
+
+
+@dataclass
+class ClassDoc:
+    """Doc IR for a SystemVerilog class (standalone file or inside a package).
+
+    :ivar extends: Base class as written (e.g. ``"base"``), or ``None``.
+    :ivar is_virtual: ``True`` for ``virtual class``.
+    :ivar params: Class parameters, value and ``type`` parameters alike.
+    :ivar properties: Data members in declaration order.
+    :ivar methods: Functions/tasks (including ``extern`` prototypes); the
+        ``qualifiers`` field carries ``virtual``/``static``/``extern``/etc.
+    """
+
+    name: str
+    doc: str | None
+    extends: str | None = None
+    is_virtual: bool = False
+    params: list[Param] = field(default_factory=list)
+    properties: list[ClassProperty] = field(default_factory=list)
+    methods: list[Subroutine] = field(default_factory=list)
 
 
 @dataclass
 class PackageDoc:
-    """Doc IR for a single SystemVerilog package: its typedefs and subroutines."""
+    """Doc IR for a single SystemVerilog package: typedefs, subroutines and classes."""
 
     name: str
     doc: str | None
     typedefs: list[Typedef] = field(default_factory=list)
     subroutines: list[Subroutine] = field(default_factory=list)
+    classes: list[ClassDoc] = field(default_factory=list)
 
 
 @dataclass

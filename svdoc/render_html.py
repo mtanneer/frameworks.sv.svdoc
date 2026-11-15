@@ -8,7 +8,7 @@ way. Nothing here checks that the target page or anchor actually exists.
 
 from html import escape
 
-from .ir import InterfaceDoc, ModuleDoc, PackageDoc
+from .ir import ClassDoc, InterfaceDoc, ModuleDoc, PackageDoc
 
 _STYLE = """
 body { font-family: -apple-system, sans-serif; max-width: 60rem; margin: 2rem auto; padding: 0 1rem; }
@@ -68,15 +68,10 @@ def _modport_preview(mp) -> str:
     rows = ["<table><tr><th>Direction</th><th>Signals</th><th>Description</th></tr>"]
     for g in mp.port_groups:
         signals = ", ".join(f"<code>{escape(s)}</code>" for s in g.signals)
-        rows.append(
-            f"<tr><td>{escape(g.direction)}</td><td>{signals}</td><td>{escape(g.doc or '')}</td></tr>"
-        )
+        rows.append(f"<tr><td>{escape(g.direction)}</td><td>{signals}</td><td>{escape(g.doc or '')}</td></tr>")
     rows.append("</table>")
     doc = f"<p>{escape(mp.doc)}</p>" if mp.doc else ""
-    return (
-        f"<details><summary>modport <code>{escape(mp.name)}</code> ins/outs</summary>"
-        f"{doc}{''.join(rows)}</details>"
-    )
+    return f"<details><summary>modport <code>{escape(mp.name)}</code> ins/outs</summary>{doc}{''.join(rows)}</details>"
 
 
 def _ports_section(ports) -> list:
@@ -94,9 +89,7 @@ def _ports_section(ports) -> list:
             f"<td>{escape(p.doc or '')}</td></tr>"
         )
         if p.modport_preview:
-            lines.append(
-                f'<tr><td colspan="4">{_modport_preview(p.modport_preview)}</td></tr>'
-            )
+            lines.append(f'<tr><td colspan="4">{_modport_preview(p.modport_preview)}</td></tr>')
     lines.append("</table>")
     return lines
 
@@ -135,19 +128,13 @@ def render_interface(iface: InterfaceDoc) -> str:
     if iface.modports:
         lines.append("<h2>Modports</h2>")
         for mp in iface.modports:
-            lines.append(
-                f'<h3 id="{escape(mp.name)}"><code>{escape(mp.name)}</code></h3>'
-            )
+            lines.append(f'<h3 id="{escape(mp.name)}"><code>{escape(mp.name)}</code></h3>')
             if mp.doc:
                 lines.append(f"<p>{escape(mp.doc)}</p>")
-            lines.append(
-                "<table><tr><th>Direction</th><th>Signals</th><th>Description</th></tr>"
-            )
+            lines.append("<table><tr><th>Direction</th><th>Signals</th><th>Description</th></tr>")
             for g in mp.port_groups:
                 signals = ", ".join(f"<code>{escape(s)}</code>" for s in g.signals)
-                lines.append(
-                    f"<tr><td>{escape(g.direction)}</td><td>{signals}</td><td>{escape(g.doc or '')}</td></tr>"
-                )
+                lines.append(f"<tr><td>{escape(g.direction)}</td><td>{signals}</td><td>{escape(g.doc or '')}</td></tr>")
             lines.append("</table>")
 
     return page(f"Interface: {iface.name}", lines)
@@ -165,14 +152,8 @@ def render_package(pkg: PackageDoc) -> str:
             lines.append(f"<p>{escape(t.doc)}</p>")
 
         if t.kind == "enum":
-            lines.append(
-                f"<p>Enum (<code>{escape(t.base_type)}</code>)</p>"
-                if t.base_type
-                else "<p>Enum</p>"
-            )
-            lines.append(
-                "<table><tr><th>Value</th><th>Number</th><th>Description</th></tr>"
-            )
+            lines.append(f"<p>Enum (<code>{escape(t.base_type)}</code>)</p>" if t.base_type else "<p>Enum</p>")
+            lines.append("<table><tr><th>Value</th><th>Number</th><th>Description</th></tr>")
             for v in t.values:
                 lines.append(
                     f"<tr><td><code>{escape(v.name)}</code></td>"
@@ -182,9 +163,7 @@ def render_package(pkg: PackageDoc) -> str:
             lines.append("</table>")
         elif t.kind == "struct":
             lines.append("<p>Packed struct</p>")
-            lines.append(
-                "<table><tr><th>Field</th><th>Type</th><th>Description</th></tr>"
-            )
+            lines.append("<table><tr><th>Field</th><th>Type</th><th>Description</th></tr>")
             for f in t.fields:
                 lines.append(
                     f"<tr><td><code>{escape(f.name)}</code></td>"
@@ -199,16 +178,10 @@ def render_package(pkg: PackageDoc) -> str:
         lines.append(f'<h2 id="{escape(s.name)}"><code>{escape(s.name)}</code></h2>')
         if s.doc:
             lines.append(f"<p>{escape(s.doc)}</p>")
-        header = (
-            f"Function returning <code>{escape(s.return_type)}</code>"
-            if s.kind == "function"
-            else "Task"
-        )
+        header = f"Function returning <code>{escape(s.return_type)}</code>" if s.kind == "function" else "Task"
         lines.append(f"<p>{header}</p>")
         if s.args:
-            lines.append(
-                "<table><tr><th>Name</th><th>Direction</th><th>Type</th><th>Description</th></tr>"
-            )
+            lines.append("<table><tr><th>Name</th><th>Direction</th><th>Type</th><th>Description</th></tr>")
             for a in s.args:
                 lines.append(
                     f"<tr><td><code>{escape(a.name)}</code></td><td>{escape(a.direction)}</td>"
@@ -216,4 +189,61 @@ def render_package(pkg: PackageDoc) -> str:
                 )
             lines.append("</table>")
 
+    for c in pkg.classes:
+        label = "Virtual class" if c.is_virtual else "Class"
+        lines.append(f'<h2 id="{escape(c.name)}">{label} <code>{escape(c.name)}</code></h2>')
+        lines += _class_body(c, "h3")
+
     return page(f"Package: {pkg.name}", lines)
+
+
+def _class_body(c: ClassDoc, h: str) -> list:
+    """Shared class body (standalone page and package section); ``h`` is the
+    tag used for the sub-section headings. Methods get ``id`` anchors so
+    ``pkg.html#cls`` / ``cls.html#method`` style links land correctly."""
+    lines = []
+    if c.doc:
+        lines.append(f"<p>{escape(c.doc)}</p>")
+    if c.extends:
+        lines.append(f"<p>Extends <code>{escape(c.extends)}</code></p>")
+    for ln in _params_section(c.params):
+        lines.append(ln.replace("<h2>", f"<{h}>").replace("</h2>", f"</{h}>"))
+    if c.properties:
+        lines += [
+            f"<{h}>Properties</{h}>",
+            "<table><tr><th>Name</th><th>Type</th><th>Qualifiers</th><th>Description</th></tr>",
+        ]
+        for p in c.properties:
+            lines.append(
+                f"<tr><td><code>{escape(p.name)}</code></td>"
+                f"<td><code>{escape(p.type)}</code></td>"
+                f"<td>{escape(' '.join(p.qualifiers))}</td>"
+                f"<td>{escape(p.doc or '')}</td></tr>"
+            )
+        lines.append("</table>")
+    if c.methods:
+        lines.append(f"<{h}>Methods</{h}>")
+        for s in c.methods:
+            lines.append(f'<h4 id="{escape(c.name)}.{escape(s.name)}"><code>{escape(s.name)}</code></h4>')
+            if s.doc:
+                lines.append(f"<p>{escape(s.doc)}</p>")
+            quals = escape(" ".join(s.qualifiers) + " ") if s.qualifiers else ""
+            has_ret = s.kind == "function" and s.return_type
+            kind = f"function returning <code>{escape(s.return_type)}</code>" if has_ret else s.kind
+            lines.append(f"<p>{quals}{kind}</p>")
+            if s.args:
+                lines.append("<table><tr><th>Name</th><th>Direction</th><th>Type</th><th>Description</th></tr>")
+                for a in s.args:
+                    lines.append(
+                        f"<tr><td><code>{escape(a.name)}</code></td><td>{escape(a.direction)}</td>"
+                        f"<td><code>{escape(a.type)}</code></td><td>{escape(a.doc or '')}</td></tr>"
+                    )
+                lines.append("</table>")
+    return lines
+
+
+def render_class(c: ClassDoc) -> str:
+    """Render a :class:`~svdoc.ir.ClassDoc` to a self-contained HTML page."""
+    label = "Virtual class" if c.is_virtual else "Class"
+    lines = [f"<h1>{label}: <code>{escape(c.name)}</code></h1>"] + _class_body(c, "h2")
+    return page(f"{label}: {c.name}", lines)

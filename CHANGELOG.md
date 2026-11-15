@@ -10,6 +10,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   render as relative links (`[pkg::type](pkg.md#type)`), and
   `svdoc build --format md` writes a flat site of `.md` pages plus an
   `index.md` of `[[wikilinks]]` (#26)
+- Classes: `ClassDoc`/`ClassProperty` IR, `parse_class`, standalone class files and
+  classes inside packages (base class, parameters, properties, methods incl.
+  `extern` prototypes), Markdown/HTML renderers and `build` index entries (#25)
 
 ## [0.5.0] - 2026-11-15
 

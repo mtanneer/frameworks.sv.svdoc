@@ -743,3 +743,67 @@ def test_fix_scaffolds_package(tmp_path, nl):
     assert subs["t"].doc == "@brief TODO"
     assert [a.doc for a in subs["t"].args] == ["TODO"]
     assert fix_file(str(f)) is False
+
+
+_CLASS_SV = """\
+/** A packet – naïve. */
+virtual class pkt #(parameter int W = 8, type T = int) extends base;
+  /** Payload. */
+  rand logic [7:0] data;
+  int count; ///< counter
+  local int hidden;
+  /** Build it. */
+  function new(int a, string s = "x");
+  endfunction
+  /** Send. */
+  virtual task send(input int n);
+  endtask
+  static function int get_id(); return 1; endfunction
+  extern function void ext(int q);
+endclass
+"""
+
+
+def test_parse_class_standalone_and_renderers(tmp_path):
+    from svdoc import render_html, render_md
+    from svdoc.ir import ClassDoc
+    from svdoc.parser import parse_file
+
+    f = tmp_path / "pkt.sv"
+    f.write_text(_CLASS_SV, encoding="utf-8")
+    c = parse_file(str(f))
+    assert isinstance(c, ClassDoc)
+    assert (c.name, c.extends, c.is_virtual) == ("pkt", "base", True)
+    assert c.doc == "A packet – naïve."
+    assert [(p.name, p.type, p.default) for p in c.params] == [("W", "int", "8"), ("T", "type", "int")]
+    props = {p.name: p for p in c.properties}
+    assert props["data"].qualifiers == ["rand"] and props["data"].doc == "Payload."
+    assert props["count"].doc == "counter" and props["hidden"].doc is None
+    assert props["hidden"].qualifiers == ["local"]
+    m = {s.name: s for s in c.methods}
+    assert m["new"].doc == "Build it." and [a.name for a in m["new"].args] == ["a", "s"]
+    assert m["send"].kind == "task" and m["send"].qualifiers == ["virtual"]
+    assert m["get_id"].return_type == "int" and m["get_id"].qualifiers == ["static"]
+    assert m["ext"].qualifiers == ["extern"] and m["ext"].args[0].name == "q"
+    md = render_md.render_class(c)
+    assert "# Virtual class: `pkt`" in md and "naïve" in md and "`send`" in md
+    html = render_html.render_class(c)
+    assert "Extends <code>base</code>" in html and 'id="pkt.send"' in html
+
+
+def test_parse_class_in_package_and_build_site(tmp_path):
+    from pathlib import Path
+
+    from svdoc.build import build_site
+    from svdoc.parser import parse_file
+
+    f = tmp_path / "p.sv"
+    f.write_text("package p;\n" + _CLASS_SV + "endpackage\n", encoding="utf-8")
+    pkg = parse_file(str(f))
+    assert [c.name for c in pkg.classes] == ["pkt"]
+    other = tmp_path / "solo.sv"
+    other.write_text("class solo;\n  int x;\nendclass\n", encoding="utf-8")
+    index = build_site([str(f), str(other)], str(tmp_path / "out"))
+    text = Path(index).read_text(encoding="utf-8")
+    assert 'href="p.html#pkt"' in text and 'href="solo.html"' in text
+    assert (tmp_path / "out" / "solo.html").exists()

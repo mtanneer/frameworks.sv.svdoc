@@ -9,7 +9,7 @@ import sys
 from . import render_diagram, render_html, render_md
 from .build import build_site
 from .fixer import fix_file
-from .ir import InterfaceDoc, ModuleDoc, PackageDoc
+from .ir import ClassDoc, InterfaceDoc, ModuleDoc, PackageDoc
 from .parser import build_hierarchy, parse_file, resolve_types
 
 _RENDERERS = {
@@ -17,11 +17,13 @@ _RENDERERS = {
         ModuleDoc: render_md.render,
         InterfaceDoc: render_md.render_interface,
         PackageDoc: render_md.render_package,
+        ClassDoc: render_md.render_class,
     },
     "html": {
         ModuleDoc: render_html.render,
         InterfaceDoc: render_html.render_interface,
         PackageDoc: render_html.render_package,
+        ClassDoc: render_html.render_class,
     },
 }
 _EXTENSIONS = {"md": ".md", "html": ".html", "mmd": ".mmd", "dot": ".dot"}
