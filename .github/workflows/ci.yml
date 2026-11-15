@@ -30,7 +30,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: pip install -e ".[dev]" pytest-cov
-      - run: pytest --cov=svdoc --cov-report=term-missing --cov-report=xml --cov-fail-under=80
+      - run: pytest --cov=svdoc --cov-report=term-missing --cov-report=xml --cov-fail-under=82
       - uses: actions/upload-artifact@v4
         with:
           name: coverage-xml-${{ matrix.python-version }}

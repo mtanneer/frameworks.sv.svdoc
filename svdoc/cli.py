@@ -39,7 +39,7 @@ _HIERARCHY_RENDERERS = {
 
 def _run_single(args):
     if args.fix:
-        changed = fix_file(args.file)
+        changed = fix_file(args.file, args.include_dir)
         print(f"{'fixed' if changed else 'no changes needed for'} {args.file}")
         return
 

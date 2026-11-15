@@ -53,6 +53,7 @@ svdoc my_module.sv my_package.sv --out html
 # covers module/interface headers, interface bodies, and packages
 # (typedefs, enum values, struct fields, functions/tasks and their args)
 svdoc my_module.sv --fix
+# (--include-dir works with --fix too, for `include targets outside the file's directory)
 
 # build a full linked HTML site from many files (any directory layout)
 svdoc build my_module.sv my_interface.sv my_package.sv --out-dir site/

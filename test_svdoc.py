@@ -833,3 +833,72 @@ def test_build_site_embeds_diagrams_html_and_opt_out():
     assert "<h2>Hierarchy</h2>" in top
     off = (_diagram_site("html", diagrams=False) / "top.html").read_text()
     assert "mermaid" not in off
+
+
+# --- #28: bugs found running svdoc over ibex / OpenTitan / common_cells / axi ---
+
+
+def test_fix_skips_macro_and_include_expanded_members(tmp_path):
+    """Members from `include / macro expansion live in other buffers; their
+    offsets must not be spliced into this file (corrupted OpenTitan *_cov_if.sv)."""
+    (tmp_path / "decls.svh").write_text(
+        "`define DECLARE_THINGS logic a_in_macro; logic b_in_macro;\nlogic from_include;\n"
+    )
+    f = tmp_path / "c.sv"
+    f.write_text(
+        'interface cov_if (\n  input logic clk\n);\n  `include "decls.svh"\n'
+        "  logic sig;\n  `DECLARE_THINGS\nendinterface\n"
+    )
+    assert fix_file(str(f)) is True
+    out = f.read_text()
+    assert "logic sig;  ///< TODO" in out
+    assert out.count("TODO") == 3  # brief + clk + sig; nothing leaked from macro/include
+    parse_interface(str(f))  # still parses
+
+
+def test_fix_honours_include_dirs(tmp_path):
+    inc = tmp_path / "inc"
+    inc.mkdir()
+    (inc / "defs.svh").write_text("`define W 8\n")
+    src = tmp_path / "m.sv"
+    src.write_text('`include "defs.svh"\nmodule m (input logic [`W-1:0] a);\nendmodule\n')
+    with pytest.raises(ValueError):
+        fix_file(str(src))
+    assert fix_file(str(src), [str(inc)]) is True
+
+
+def test_warnings_do_not_reject_file(tmp_path):
+    """IgnoredMacroPaste is warning-severity; real RTL (assert macros) triggers it."""
+    f = tmp_path / "w.sv"
+    f.write_text("`define M(a) a``_q\nmodule w (input logic x);\n  logic `M(y);\nendmodule\n")
+    assert parse_module(str(f)).name == "w"
+
+
+@pytest.mark.parametrize("body", ["program p; endprogram", "// nothing here"])
+def test_file_without_documentable_construct_is_valueerror(tmp_path, body):
+    """Used to leak StopIteration (programs, bind-only, ifdef'd-out files)."""
+    from svdoc.parser import parse_file
+
+    f = tmp_path / "x.sv"
+    f.write_text(body + "\n")
+    with pytest.raises(ValueError, match="no module"):
+        parse_file(str(f))
+    if "program" not in body:  # --fix scaffolds a program's header like a module's
+        with pytest.raises(ValueError):
+            fix_file(str(f))
+
+
+def test_class_property_multiple_declarators(tmp_path):
+    """Comma-interleaving bug class (5th): `int a, b;` in a class crashed on the comma token."""
+    f = tmp_path / "k.sv"
+    f.write_text("class k;\n  int a, b;\n  bit c;\nendclass\n")
+    from svdoc.parser import parse_file
+
+    assert [p.name for p in parse_file(str(f)).properties] == ["a", "b", "c"]
+
+
+def test_parse_error_message_is_readable(tmp_path):
+    f = tmp_path / "bad.sv"
+    f.write_text("module m(; endmodule\n")
+    with pytest.raises(ValueError, match="expected"):
+        parse_module(str(f))
