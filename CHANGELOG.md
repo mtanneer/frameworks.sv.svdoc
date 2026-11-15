@@ -3,6 +3,14 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+- `docs/stability.rst`: the 1.0 stable surface (CLI, Python API, IR), what is
+  not covered, the final doc-comment convention and the "document everything"
+  visibility rule; deprecation policy in `CONTRIBUTING.md`; `build_hierarchy`
+  and `svdoc.render_diagram` added to the API reference (#27)
+
 ## [0.6.0] - 2026-11-15
 
 ### Added
