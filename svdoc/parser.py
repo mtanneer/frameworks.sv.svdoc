@@ -647,6 +647,8 @@ def _parse_class_node(cls) -> ClassDoc:
             # trailing ///< on the next item wins, else the item's own leading doc
             pdoc = _trailing_doc(next_node) or _class_leading_doc(m)
             for dr in d.declarators:
+                if not hasattr(dr, "name"):  # comma tokens interleave with declarators
+                    continue
                 doc.properties.append(
                     ClassProperty(name=dr.name.valueText, type=_type_str(d.type), doc=pdoc, qualifiers=quals)
                 )

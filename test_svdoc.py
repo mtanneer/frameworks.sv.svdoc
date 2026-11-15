@@ -834,6 +834,7 @@ def test_build_site_embeds_diagrams_html_and_opt_out():
     off = (_diagram_site("html", diagrams=False) / "top.html").read_text()
     assert "mermaid" not in off
 
+
 # --- #28: bugs found running svdoc over ibex / OpenTitan / common_cells / axi ---
 
 
@@ -885,6 +886,15 @@ def test_file_without_documentable_construct_is_valueerror(tmp_path, body):
     if "program" not in body:  # --fix scaffolds a program's header like a module's
         with pytest.raises(ValueError):
             fix_file(str(f))
+
+
+def test_class_property_multiple_declarators(tmp_path):
+    """Comma-interleaving bug class (5th): `int a, b;` in a class crashed on the comma token."""
+    f = tmp_path / "k.sv"
+    f.write_text("class k;\n  int a, b;\n  bit c;\nendclass\n")
+    from svdoc.parser import parse_file
+
+    assert [p.name for p in parse_file(str(f)).properties] == ["a", "b", "c"]
 
 
 def test_parse_error_message_is_readable(tmp_path):

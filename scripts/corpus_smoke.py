@@ -17,18 +17,20 @@ import tempfile
 
 from svdoc import render_diagram, render_html, render_md
 from svdoc.fixer import fix_file
-from svdoc.ir import InterfaceDoc, ModuleDoc, PackageDoc
+from svdoc.ir import ClassDoc, InterfaceDoc, ModuleDoc, PackageDoc
 from svdoc.parser import parse_file
 
 MD = {
     ModuleDoc: render_md.render,
     InterfaceDoc: render_md.render_interface,
     PackageDoc: render_md.render_package,
+    ClassDoc: render_md.render_class,
 }
 HTML = {
     ModuleDoc: render_html.render,
     InterfaceDoc: render_html.render_interface,
     PackageDoc: render_html.render_package,
+    ClassDoc: render_html.render_class,
 }
 
 
@@ -66,6 +68,9 @@ def main():
                 dirs = (inc or []) + [str(f.parent)]
                 fix_file(str(copy), dirs)
                 parse_file(str(copy), dirs)
+            except ValueError as e:
+                if not str(e).startswith("no module or interface"):  # --fix has no class support yet
+                    crashes.append((f, "fix", repr(e)[:300]))
             except Exception as e:  # noqa: BLE001
                 crashes.append((f, "fix", repr(e)[:300]))
     print(dict(stats), f"{len(crashes)} crashes")

@@ -31,6 +31,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   place (corrupted OpenTitan `*_cov_if.sv`; the post-fix parse check refused the write)
 - `--fix` accepts `--include-dir` and resolves `include` relative to the file on its
   safety re-parse
+- Class properties declared with several declarators (`int a, b;`) no longer crash
+  (comma-token interleaving)
 - Parse-error messages show file:line:col and a source excerpt instead of
   `<pyslang.Diagnostic object at 0x...>`
 
