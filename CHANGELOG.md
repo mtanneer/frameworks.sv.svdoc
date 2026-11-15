@@ -3,6 +3,20 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.1] - 2026-11-14
+
+### Fixed
+- `--fix` corrupted files containing non-ASCII characters (e.g. `──` in header
+  comments): pyslang byte offsets were used to index a `str`, so stubs landed
+  mid-token. Now splices bytes (#32)
+- `--fix` stub on the last port/parameter swallowed a closing `)`/`)(` on the
+  same line; the line is now broken after the stub (#32)
+- `--fix` preserves CRLF line endings
+
+### Changed
+- `--fix` re-parses its output and aborts without writing if it would
+  introduce parse errors; writes are atomic (temp file + rename)
+
 ## [0.4.0] - 2026-11-07
 
 ### Changed
