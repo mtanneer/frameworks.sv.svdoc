@@ -64,6 +64,11 @@ svdoc build my_module.sv my_interface.sv my_package.sv --out-dir site/ --format 
 # build embeds Mermaid diagrams in module pages by default; opt out with
 svdoc build my_module.sv my_interface.sv --out-dir site/ --no-diagrams
 
+# files that don't parse (or have no module/interface/package/class) are skipped
+# with a warning, as are constructs whose name is already taken by an earlier
+# file (pages are named after the construct); fail instead with
+svdoc build src/*.sv --out-dir site/ --strict
+
 # single file: embed the module symbol diagram too
 svdoc my_module.sv --out md --diagrams
 ```

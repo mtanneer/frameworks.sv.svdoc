@@ -902,3 +902,28 @@ def test_parse_error_message_is_readable(tmp_path):
     f.write_text("module m(; endmodule\n")
     with pytest.raises(ValueError, match="expected"):
         parse_module(str(f))
+
+
+def test_build_site_skips_bad_files_and_name_collisions(tmp_path):
+    """#28: one unparseable/program-only file or a duplicate name must not abort or overwrite."""
+    a = tmp_path / "a" / "dup.sv"
+    b = tmp_path / "b" / "dup.sv"
+    a.parent.mkdir()
+    b.parent.mkdir()
+    a.write_text("module dup(input logic x);\nendmodule\n")
+    b.write_text("module dup(input logic y);\nendmodule\n")
+    prog = tmp_path / "prog.sv"
+    prog.write_text("program p;\nendprogram\n")
+    bad = tmp_path / "bad.sv"
+    bad.write_text("module bad(;\nendmodule\n")
+    out = tmp_path / "out"
+
+    with pytest.warns(UserWarning) as rec:
+        build_site([str(a), str(b), str(prog), str(bad)], str(out), diagrams=False)
+    msgs = " ".join(str(w.message) for w in rec)
+    assert "already used by" in msgs and "prog.sv" in msgs and "bad.sv" in msgs
+    assert "x" in (out / "dup.html").read_text()  # first one wins, not overwritten
+    assert "dup.html" in (out / "index.html").read_text()
+
+    with pytest.raises(ValueError):
+        build_site([str(prog)], str(tmp_path / "out2"), strict=True)

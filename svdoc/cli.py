@@ -67,8 +67,10 @@ def _run_single(args):
 
 
 def _run_build(args):
-    index_path = build_site(args.files, args.out_dir, args.include_dir, args.format, not args.no_diagrams)
-    print(f"wrote {len(args.files)} file(s) to a site at {index_path}")
+    index_path = build_site(
+        args.files, args.out_dir, args.include_dir, args.format, not args.no_diagrams, strict=args.strict
+    )
+    print(f"wrote site at {index_path}")
 
 
 def _run_hierarchy(args):
@@ -90,6 +92,11 @@ def _build_parser():
         help="site format: linked HTML pages (default) or cross-linked Markdown with an index.md",
     )
     ap.add_argument("--no-diagrams", action="store_true", help="omit embedded Mermaid diagrams from module pages")
+    ap.add_argument(
+        "--strict",
+        action="store_true",
+        help="fail on the first file that doesn't parse (default: skip it with a warning)",
+    )
     ap.add_argument(
         "--include-dir",
         action="append",

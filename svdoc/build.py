@@ -6,6 +6,7 @@ whatever directories the source files happen to live in.
 
 import pathlib
 import re
+import warnings
 from html import escape
 
 from . import render_html, render_md
@@ -43,7 +44,12 @@ _KIND_LABELS = {
 
 
 def build_site(
-    paths: list, out_dir: str, include_dirs: list | None = None, fmt: str = "html", diagrams: bool = True
+    paths: list,
+    out_dir: str,
+    include_dirs: list | None = None,
+    fmt: str = "html",
+    diagrams: bool = True,
+    strict: bool = False,
 ) -> str:
     """Parse every file in ``paths`` and write one HTML page per construct
     into a single flat ``out_dir``, plus an ``index.html`` linking to all of
@@ -64,13 +70,41 @@ def build_site(
     :param diagrams: Embed a module symbol diagram in every module page, plus
         an instance-hierarchy diagram for modules that instantiate others
         (Mermaid; ``False`` to opt out).
+    :param strict: Raise on the first file that fails to parse. By default such
+        files (parse errors, or no module/interface/package/class, e.g.
+        program-only files) are skipped with a :class:`UserWarning`.
     :returns: Path to the written index file.
-    :raises ValueError: If any file fails to parse cleanly.
+    :raises ValueError: If ``strict`` and any file fails to parse cleanly.
+
+    Pages are named after the construct, so two constructs with the same name
+    (even in different directories) would overwrite each other. The first one
+    (in ``paths`` order) wins; later ones are skipped with a warning.
     """
     out = pathlib.Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
 
-    docs = [parse_file(p, include_dirs) for p in paths]
+    docs = []
+    good_paths = []
+    seen = {}  # page name -> source path that claimed it
+    for p in paths:
+        try:
+            doc = parse_file(p, include_dirs)
+        except ValueError as e:
+            if strict:
+                raise
+            warnings.warn(f"skipping {p}: {e}", stacklevel=2)
+            continue
+        page = _safe_page_name(doc.name)
+        if page in seen:
+            warnings.warn(
+                f"skipping {p}: page name '{page}' already used by {seen[page]} (would overwrite it)",
+                stacklevel=2,
+            )
+            continue
+        seen[page] = p
+        docs.append(doc)
+        good_paths.append(p)
+    paths = good_paths
     for doc in docs:
         if isinstance(doc, ModuleDoc):
             resolve_types(doc, paths, include_dirs)
