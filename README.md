@@ -50,6 +50,9 @@ svdoc my_module.sv --fix
 
 # build a full linked HTML site from many files (any directory layout)
 svdoc build my_module.sv my_interface.sv my_package.sv --out-dir site/
+
+# same, but cross-linked Markdown pages + index.md of [[wikilinks]] (Obsidian)
+svdoc build my_module.sv my_interface.sv my_package.sv --out-dir site/ --format md
 ```
 
 ## Example output

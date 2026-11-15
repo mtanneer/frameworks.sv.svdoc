@@ -3,6 +3,16 @@
 from .ir import InterfaceDoc, ModuleDoc, PackageDoc
 
 
+def _type_cell(type_str: str, type_ref: str) -> str:
+    """Relative-link cell, convention-based like the HTML renderer:
+    ``pkg::member`` -> ``[pkg::member](pkg.md#member)`` (plain Markdown link,
+    works in Obsidian and GitHub; target existence is not verified)."""
+    if not type_ref:
+        return f"`{type_str}`"
+    pkg, _, member = type_ref.partition("::")
+    return f"[`{type_ref}`]({pkg}.md#{member})"
+
+
 def _params_section(params) -> list:
     if not params:
         return []
@@ -13,9 +23,7 @@ def _params_section(params) -> list:
         "|---|---|---|---|",
     ]
     for p in params:
-        lines.append(
-            f"| `{p.name}` | `{p.type}` | `{p.default or ''}` | {p.doc or ''} |"
-        )
+        lines.append(f"| `{p.name}` | {_type_cell(p.type, p.type_ref)} | `{p.default or ''}` | {p.doc or ''} |")
     lines.append("")
     return lines
 
@@ -30,9 +38,7 @@ def _ports_section(ports) -> list:
         "|---|---|---|---|",
     ]
     for p in ports:
-        lines.append(
-            f"| `{p.name}` | {p.direction} | `{p.type_ref or p.type}` | {p.doc or ''} |"
-        )
+        lines.append(f"| `{p.name}` | {p.direction} | {_type_cell(p.type, p.type_ref)} | {p.doc or ''} |")
     lines.append("")
     return lines
 
@@ -70,9 +76,7 @@ def render_interface(iface: InterfaceDoc) -> str:
                 lines += [mp.doc, ""]
             lines += ["| Direction | Signals | Description |", "|---|---|---|"]
             for g in mp.port_groups:
-                lines.append(
-                    f"| {g.direction} | {', '.join(f'`{s}`' for s in g.signals)} | {g.doc or ''} |"
-                )
+                lines.append(f"| {g.direction} | {', '.join(f'`{s}`' for s in g.signals)} | {g.doc or ''} |")
             lines.append("")
 
     return "\n".join(lines)
@@ -111,17 +115,13 @@ def render_package(pkg: PackageDoc) -> str:
         lines.append("")
         if s.doc:
             lines += [s.doc, ""]
-        header = (
-            f"Function returning `{s.return_type}`" if s.kind == "function" else "Task"
-        )
+        header = f"Function returning `{s.return_type}`" if s.kind == "function" else "Task"
         lines.append(header)
         lines.append("")
         if s.args:
             lines += ["| Name | Direction | Type | Description |", "|---|---|---|---|"]
             for a in s.args:
-                lines.append(
-                    f"| `{a.name}` | {a.direction} | `{a.type}` | {a.doc or ''} |"
-                )
+                lines.append(f"| `{a.name}` | {a.direction} | `{a.type}` | {a.doc or ''} |")
             lines.append("")
 
     return "\n".join(lines)

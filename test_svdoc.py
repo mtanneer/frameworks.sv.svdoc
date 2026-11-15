@@ -1,6 +1,7 @@
 """Minimal smoke test for the Phase 1 IR/renderer pipeline and --fix."""
 
 import os
+import pathlib
 import shutil
 import subprocess
 import sys
@@ -222,7 +223,7 @@ def test_resolve_types_cross_file():
     assert mod.ports[2].type_ref == "fifo_pkg::fifo_status_t"
 
     text = render(mod)
-    assert "`fifo_pkg::fifo_mode_e`" in text
+    assert "[`fifo_pkg::fifo_mode_e`](fifo_pkg.md#fifo_mode_e)" in text
 
     html = render_html(mod)
     assert '<a href="fifo_pkg.html#fifo_mode_e">fifo_pkg::fifo_mode_e</a>' in html
@@ -398,6 +399,21 @@ endmodule
         os.remove(path1)
         os.remove(path2)
         os.remove(path3)
+
+
+def test_build_site_markdown_cross_links():
+    with tempfile.TemporaryDirectory() as d:
+        a, b, out = (os.path.join(d, n) for n in ("top.sv", "my_if.sv", "site"))
+        with open(a, "w") as f:
+            f.write("module top (\n    my_if.dut bus\n);\nendmodule\n")
+        with open(b, "w") as f:
+            f.write("interface my_if;\n    logic ready;\n    modport dut (input ready);\nendinterface\n")
+        index = build_site([a, b], out, fmt="md")
+        assert index.endswith("index.md")
+        idx = pathlib.Path(index).read_text()
+        assert "[[top]]" in idx and "[[my_if]]" in idx
+        assert "[`my_if::dut`](my_if.md#dut)" in pathlib.Path(out, "top.md").read_text()
+        assert "### `dut`" in pathlib.Path(out, "my_if.md").read_text()
 
 
 def test_build_site_generates_working_cross_links():
