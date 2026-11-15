@@ -20,6 +20,19 @@ git config core.hooksPath scripts/hooks  # runs `ruff format` on commit
 - Keep PRs scoped to one change; update `CHANGELOG.md` under `[Unreleased]`
   for anything user-facing.
 
+## Stability and deprecation
+
+What is public (CLI flags, documented Python API, IR fields) is defined in
+`docs/stability.rst`. From 1.0 it follows semver:
+
+- Removing or renaming public surface needs a deprecation first: keep the old
+  name working for at least one minor release, emit a `DeprecationWarning`
+  (Python API) or a stderr warning (CLI flag), and note it under
+  `### Deprecated` in `CHANGELOG.md`. Removal happens in the next major.
+- IR changes in 1.x are additive only (new fields with defaults).
+- Generated-output markup is not covered; refine it freely, but note visible
+  changes in the changelog.
+
 ## Reporting bugs / proposing features
 
 Open a GitHub issue. Include the `.sv` snippet that reproduces the problem

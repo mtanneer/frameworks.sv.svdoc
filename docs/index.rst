@@ -19,5 +19,6 @@ parser, and renderers) — not the SystemVerilog docs ``svdoc`` generates.
    :caption: Contents:
 
    example
+   stability
    api
 
