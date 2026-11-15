@@ -34,12 +34,59 @@ def _trailing_stub(text: bytes, offset: int) -> bytes:
     return b"  ///< TODO" if not rest.strip() else b"  ///< TODO\n"
 
 
+def _trailing_items(raw, close, text, insertions, is_item):
+    """Trailing ``///< TODO`` for each comma-interleaved item in ``raw``
+    (enum values, subroutine args): same lookup/insertion rule as ports."""
+    for i, node in enumerate(raw):
+        if not is_item(node):
+            continue
+        has_comma = i + 1 < len(raw)
+        lookup = raw[i + 2] if has_comma and i + 2 < len(raw) else close
+        if _trailing_doc(lookup) is None:
+            offset = _end_offset(raw[i + 1]) if has_comma else _end_offset(node)
+            insertions.append((offset, _trailing_stub(text, offset)))
+
+
+def _leading_brief(m, text, insertions):
+    if _leading_doc(m) is None:
+        offset = m.getFirstToken().range.start.offset
+        insertions.append((offset, _brief_stub(text, offset)))
+
+
+def _scaffold_package(pkg, text, insertions):
+    """Typedefs (enum/struct/alias), their values/fields, functions/tasks and
+    their args -- mirrors what parse_package reads."""
+    kinds = pyslang.syntax.SyntaxKind
+    members = list(pkg.members)
+    for i, m in enumerate(members):
+        next_node = members[i + 1] if i + 1 < len(members) else pkg.endmodule
+        if m.kind in (kinds.FunctionDeclaration, kinds.TaskDeclaration):
+            _leading_brief(m, text, insertions)
+            pl = m.prototype.portList
+            if pl is not None:
+                _trailing_items(list(pl.ports), pl.closeParen, text, insertions, lambda n: hasattr(n, "declarator"))
+        elif m.kind == kinds.TypedefDeclaration:
+            if m.type.kind == kinds.EnumType:
+                _leading_brief(m, text, insertions)
+                _trailing_items(list(m.type.members), m.type.closeBrace, text, insertions, lambda n: hasattr(n, "name"))
+            elif m.type.kind == kinds.StructType:
+                _leading_brief(m, text, insertions)
+                fields = list(m.type.members)
+                for j, f in enumerate(fields):
+                    nxt = fields[j + 1] if j + 1 < len(fields) else m.type.closeBrace
+                    if _trailing_doc(nxt) is None:
+                        insertions.append((_end_offset(f), _trailing_stub(text, _end_offset(f))))
+            elif _trailing_doc(next_node) is None:  # alias: trailing or leading doc both count
+                _leading_brief(m, text, insertions)
+
+
 def fix_file(path: str) -> bool:
     """Scaffold missing doc comments in place, in ``path``, and save the result.
 
     Inserts ``///< TODO`` next to any undocumented port/parameter, and a
     ``/** @brief TODO */`` stub above the module/interface/package itself if
-    it has no doc comment. Idempotent: re-running on an already-documented
+    it has no doc comment. In packages, also scaffolds typedefs (enum values,
+    struct fields) and functions/tasks (and their arguments). Idempotent: re-running on an already-documented
     file makes no changes.
 
     :param path: Path to the ``.sv`` file to fix in place.
@@ -106,6 +153,9 @@ def fix_file(path: str) -> bool:
             elif m.kind == pyslang.syntax.SyntaxKind.ModportDeclaration and _leading_doc(m) is None:
                 offset = m.getFirstToken().range.start.offset
                 insertions.append((offset, _brief_stub(text, offset)))
+
+    if mod.kind == pyslang.syntax.SyntaxKind.PackageDeclaration:
+        _scaffold_package(mod, text, insertions)
 
     if not insertions:
         return False
