@@ -680,3 +680,50 @@ def test_fix_non_ascii_and_closing_paren_same_line(tmp_path, nl):
     assert "parameter int P = 1  ///< TODO" in out
     assert fix_file(str(f)) is False  # idempotent
     assert out.count("\n") == out.count(nl)
+
+
+_PKG_SRC = """\
+// ── pkg ──
+package p;
+    typedef enum logic [1:0] {
+        A,
+        B
+    } st_t;
+
+    typedef struct packed {
+        logic x;
+        logic y;
+    } s_t;
+
+    typedef logic [7:0] byte_t;
+
+    function automatic int f(input int a, input int b);
+        return a + b;
+    endfunction
+
+    task t(input int n);
+    endtask
+endpackage
+"""
+
+
+@pytest.mark.parametrize("nl", ["\n", "\r\n"])
+def test_fix_scaffolds_package(tmp_path, nl):
+    """#29: packages, typedefs (enum/struct/alias), functions/tasks."""
+    f = tmp_path / "p.sv"
+    f.write_bytes(_PKG_SRC.replace("\n", nl).encode())
+    assert fix_file(str(f)) is True
+    pkg = parse_package(str(f))
+    assert pkg.doc  # the non-ASCII // header already counts as a doc comment
+    by = {t.name: t for t in pkg.typedefs}
+    assert by["st_t"].doc == "@brief TODO"
+    assert [v.doc for v in by["st_t"].values] == ["TODO", "TODO"]
+    assert by["s_t"].doc == "@brief TODO"
+    assert [x.doc for x in by["s_t"].fields] == ["TODO", "TODO"]
+    assert by["byte_t"].doc == "@brief TODO"
+    subs = {s.name: s for s in pkg.subroutines}
+    assert subs["f"].doc == "@brief TODO"
+    assert [a.doc for a in subs["f"].args] == ["TODO", "TODO"]
+    assert subs["t"].doc == "@brief TODO"
+    assert [a.doc for a in subs["t"].args] == ["TODO"]
+    assert fix_file(str(f)) is False

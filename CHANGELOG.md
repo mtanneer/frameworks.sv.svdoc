@@ -3,6 +3,14 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+- `--fix` now scaffolds packages: undocumented typedefs (enum/struct/alias)
+  get a `/** @brief TODO */` stub, enum values, struct fields and
+  function/task arguments get `///< TODO`, and functions/tasks get a
+  `@brief` stub (#29)
+
 ## [0.4.1] - 2026-11-14
 
 ### Fixed

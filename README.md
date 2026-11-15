@@ -43,7 +43,9 @@ svdoc my_module.sv --out html
 # resolve cross-file types (e.g. a module using a package's enum/struct)
 svdoc my_module.sv my_package.sv --out html
 
-# auto-scaffold missing doc comments in place (like `ruff --fix`)
+# auto-scaffold missing doc comments in place (like `ruff --fix`);
+# covers module/interface headers, interface bodies, and packages
+# (typedefs, enum values, struct fields, functions/tasks and their args)
 svdoc my_module.sv --fix
 
 # build a full linked HTML site from many files (any directory layout)
