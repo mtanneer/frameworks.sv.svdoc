@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- `svdoc build` no longer aborts on the first file that fails to parse or has
+  no module/interface/package/class (e.g. program-only files): it skips the
+  file with a warning. `--strict` restores fail-fast (#28)
+- `svdoc build` no longer silently overwrites a page when two files define a
+  construct with the same name (e.g. `prim_generic` in two directories): the
+  first wins, later ones are skipped with a warning naming both files (#28)
+
 ### Added
 - Diagrams embedded in doc pages: `svdoc build` adds a Mermaid module symbol
   diagram and, for modules with instances, a hierarchy diagram to module pages
