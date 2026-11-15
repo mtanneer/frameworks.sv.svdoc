@@ -3,6 +3,9 @@
 `ruff --fix` — scaffolds missing docs rather than guessing their content.
 """
 
+import os
+import tempfile
+
 import pyslang
 
 from .parser import _leading_doc, _trailing_doc
@@ -14,13 +17,21 @@ def _end_offset(node) -> int:
     return tok.range.end.offset
 
 
-def _brief_stub(text: str, offset: int) -> str:
+def _brief_stub(text: bytes, offset: int) -> bytes:
     """A `/** @brief TODO */` block stub, indented to match the column the
     node it precedes starts at (mid-file insertions -- e.g. above a nested
     modport -- land at the modport's own indentation, not column 0)."""
-    line_start = text.rfind("\n", 0, offset) + 1
-    indent = text[line_start:offset]
-    return f"/**\n{indent} * @brief TODO\n{indent} */\n{indent}"
+    line_start = text.rfind(b"\n", 0, offset) + 1
+    indent = text[line_start:offset].decode("utf-8", "replace")
+    return f"/**\n{indent} * @brief TODO\n{indent} */\n{indent}".encode()
+
+
+def _trailing_stub(text: bytes, offset: int) -> bytes:
+    """`///< TODO` stub. If code follows on the same line (e.g. `)(`), the line
+    comment would swallow it, so break the line after the stub instead."""
+    eol = text.find(b"\n", offset)
+    rest = text[offset : eol if eol != -1 else len(text)]
+    return b"  ///< TODO" if not rest.strip() else b"  ///< TODO\n"
 
 
 def fix_file(path: str) -> bool:
@@ -40,8 +51,10 @@ def fix_file(path: str) -> bool:
     if tree.diagnostics:
         raise ValueError(f"parse errors in {path}: {list(tree.diagnostics)}")
 
-    with open(path) as f:
+    # pyslang offsets are byte offsets: splice bytes, not str.
+    with open(path, "rb") as f:
         text = f.read()
+    nl = b"\r\n" if b"\r\n" in text else b"\n"
 
     # module and interface declarations share the same syntax shape
     # (ModuleDeclarationSyntax, differentiated only by .kind) -- --fix scaffolds
@@ -71,7 +84,7 @@ def fix_file(path: str) -> bool:
             lookup = raw[i + 2] if has_comma and i + 2 < len(raw) else header.parameters.closeParen
             if _trailing_doc(lookup) is None:
                 offset = _end_offset(raw[i + 1]) if has_comma else _end_offset(node)
-                insertions.append((offset, "  ///< TODO"))
+                insertions.append((offset, _trailing_stub(text, offset)))
 
     if header.ports:
         raw = list(header.ports.ports)
@@ -82,14 +95,14 @@ def fix_file(path: str) -> bool:
             lookup = raw[i + 2] if has_comma and i + 2 < len(raw) else header.ports.closeParen
             if _trailing_doc(lookup) is None:
                 offset = _end_offset(raw[i + 1]) if has_comma else _end_offset(node)
-                insertions.append((offset, "  ///< TODO"))
+                insertions.append((offset, _trailing_stub(text, offset)))
 
     if mod.kind == pyslang.syntax.SyntaxKind.InterfaceDeclaration:
         members = list(mod.members)
         for i, m in enumerate(members):
             next_node = members[i + 1] if i + 1 < len(members) else mod.endmodule
             if m.kind == pyslang.syntax.SyntaxKind.DataDeclaration and _trailing_doc(next_node) is None:
-                insertions.append((_end_offset(m), "  ///< TODO"))
+                insertions.append((_end_offset(m), _trailing_stub(text, _end_offset(m))))
             elif m.kind == pyslang.syntax.SyntaxKind.ModportDeclaration and _leading_doc(m) is None:
                 offset = m.getFirstToken().range.start.offset
                 insertions.append((offset, _brief_stub(text, offset)))
@@ -98,7 +111,23 @@ def fix_file(path: str) -> bool:
         return False
 
     for offset, snippet in sorted(insertions, reverse=True):
+        if nl != b"\n":
+            snippet = snippet.replace(b"\n", nl)
         text = text[:offset] + snippet + text[offset:]
-    with open(path, "w") as f:
-        f.write(text)
+
+    # never write output that doesn't parse cleanly
+    check = pyslang.syntax.SyntaxTree.fromText(text.decode("utf-8"), pyslang.SourceManager())
+    if check.diagnostics:
+        raise ValueError(f"--fix would corrupt {path}: {list(check.diagnostics)}; file left unchanged")
+
+    # atomic write: temp file in same dir, then rename
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(os.path.abspath(path)))
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(text)
+        os.chmod(tmp, os.stat(path).st_mode)
+        os.replace(tmp, path)
+    except BaseException:
+        os.unlink(tmp)
+        raise
     return True

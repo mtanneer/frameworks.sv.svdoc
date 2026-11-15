@@ -665,3 +665,18 @@ if __name__ == "__main__":
     test_render_hierarchy_collapses_interface_instances_into_modport_edges()
     test_parser_rejects_pre_11_pyslang()
     print("ok")
+
+
+@pytest.mark.parametrize("nl", ["\n", "\r\n"])
+def test_fix_non_ascii_and_closing_paren_same_line(tmp_path, nl):
+    """Regression for #32: multibyte chars, stub before `)(`, CRLF round-trip."""
+    src = "// ── box ──\nmodule b #(parameter int P = 1)(\n  input logic clk,\n  output logic q\n);\nendmodule\n"
+    f = tmp_path / "b.sv"
+    f.write_bytes(src.replace("\n", nl).encode())
+    assert fix_file(str(f)) is True
+    out = f.read_bytes().decode()
+    assert "input logic clk,  ///< TODO" in out
+    assert "output logic q  ///< TODO" in out
+    assert "parameter int P = 1  ///< TODO" in out
+    assert fix_file(str(f)) is False  # idempotent
+    assert out.count("\n") == out.count(nl)
