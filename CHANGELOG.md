@@ -3,15 +3,7 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
-
-### Fixed
-- `svdoc build` no longer aborts on the first file that fails to parse or has
-  no module/interface/package/class (e.g. program-only files): it skips the
-  file with a warning. `--strict` restores fail-fast (#28)
-- `svdoc build` no longer silently overwrites a page when two files define a
-  construct with the same name (e.g. `prim_generic` in two directories): the
-  first wins, later ones are skipped with a warning naming both files (#28)
+## [0.6.0] - 2026-11-15
 
 ### Added
 - Diagrams embedded in doc pages: `svdoc build` adds a Mermaid module symbol
@@ -30,6 +22,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   directory of real-world `.sv` files (parse, render, `--fix` on temp copies). Not in CI (#28)
 
 ### Fixed
+- `svdoc build` no longer aborts on the first file that fails to parse or has
+  no module/interface/package/class (e.g. program-only files): it skips the
+  file with a warning. `--strict` restores fail-fast (#28)
+- `svdoc build` no longer silently overwrites a page when two files define a
+  construct with the same name (e.g. `prim_generic` in two directories): the
+  first wins, later ones are skipped with a warning naming both files (#28)
 - Found running against lowRISC ibex, OpenTitan, PULP common_cells and axi (#28):
 - Warning-severity diagnostics (e.g. `IgnoredMacroPaste` from assertion macros) no longer
   reject a file; only errors do
