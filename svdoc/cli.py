@@ -62,7 +62,7 @@ def _run_single(args):
 
 
 def _run_build(args):
-    index_path = build_site(args.files, args.out_dir, args.include_dir)
+    index_path = build_site(args.files, args.out_dir, args.include_dir, args.format)
     print(f"wrote {len(args.files)} file(s) to a site at {index_path}")
 
 
@@ -78,6 +78,12 @@ def _build_parser():
     ap = argparse.ArgumentParser(prog="svdoc build")
     ap.add_argument("files", nargs="+", help=".sv files to document")
     ap.add_argument("--out-dir", required=True, help="directory to write the site into")
+    ap.add_argument(
+        "--format",
+        choices=["html", "md"],
+        default="html",
+        help="site format: linked HTML pages (default) or cross-linked Markdown with an index.md",
+    )
     ap.add_argument(
         "--include-dir",
         action="append",

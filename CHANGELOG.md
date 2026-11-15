@@ -3,6 +3,14 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+- Markdown output cross-links: package/interface-typed ports and parameters
+  render as relative links (`[pkg::type](pkg.md#type)`), and
+  `svdoc build --format md` writes a flat site of `.md` pages plus an
+  `index.md` of `[[wikilinks]]` (#26)
+
 ## [0.5.0] - 2026-11-15
 
 ### Added

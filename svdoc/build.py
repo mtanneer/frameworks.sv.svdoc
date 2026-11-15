@@ -8,7 +8,7 @@ import pathlib
 import re
 from html import escape
 
-from . import render_html
+from . import render_html, render_md
 from .ir import InterfaceDoc, ModuleDoc, PackageDoc
 from .parser import parse_file, resolve_types
 
@@ -27,6 +27,11 @@ _RENDERERS = {
     InterfaceDoc: render_html.render_interface,
     PackageDoc: render_html.render_package,
 }
+_MD_RENDERERS = {
+    ModuleDoc: render_md.render,
+    InterfaceDoc: render_md.render_interface,
+    PackageDoc: render_md.render_package,
+}
 _KIND_LABELS = {
     ModuleDoc: "Module",
     InterfaceDoc: "Interface",
@@ -34,7 +39,7 @@ _KIND_LABELS = {
 }
 
 
-def build_site(paths: list, out_dir: str, include_dirs: list | None = None) -> str:
+def build_site(paths: list, out_dir: str, include_dirs: list | None = None, fmt: str = "html") -> str:
     """Parse every file in ``paths`` and write one HTML page per construct
     into a single flat ``out_dir``, plus an ``index.html`` linking to all of
     them. Because every page lands in the same directory, the convention-based
@@ -48,7 +53,10 @@ def build_site(paths: list, out_dir: str, include_dirs: list | None = None) -> s
     :param include_dirs: Optional directories to search for ```include``
         targets that don't live alongside any file in ``paths`` (e.g. a
         shared ``include/`` directory separate from per-module source dirs).
-    :returns: Path to the written ``index.html``.
+    :param fmt: ``"html"`` (default) or ``"md"``. Markdown mode writes
+        ``<name>.md`` pages cross-linked by relative links plus an
+        ``index.md`` of ``[[wikilinks]]`` (Obsidian-friendly).
+    :returns: Path to the written index file.
     :raises ValueError: If any file fails to parse cleanly.
     """
     out = pathlib.Path(out_dir)
@@ -58,6 +66,16 @@ def build_site(paths: list, out_dir: str, include_dirs: list | None = None) -> s
     for doc in docs:
         if isinstance(doc, ModuleDoc):
             resolve_types(doc, paths, include_dirs)
+
+    if fmt == "md":
+        md = ["# svdoc site", ""]
+        for doc in sorted(docs, key=lambda d: (_KIND_LABELS[type(d)], d.name)):
+            name = _safe_page_name(doc.name)
+            (out / f"{name}.md").write_text(_MD_RENDERERS[type(doc)](doc))
+            md.append(f"- {_KIND_LABELS[type(doc)]}: [[{name}]]")
+        index_path = out / "index.md"
+        index_path.write_text("\n".join(md) + "\n")
+        return str(index_path)
 
     index_lines = ["<h1>svdoc site</h1>", "<ul>"]
     for doc in sorted(docs, key=lambda d: (_KIND_LABELS[type(d)], d.name)):
