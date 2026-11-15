@@ -19,6 +19,8 @@ if not hasattr(pyslang, "parsing"):
     )
 
 from .ir import (
+    ClassDoc,
+    ClassProperty,
     EnumValue,
     Instance,
     InterfaceDoc,
@@ -194,7 +196,13 @@ def parse_file(path: str, include_dirs: list | None = None):
     tree = pyslang.syntax.SyntaxTree.fromFile(path, _source_manager(include_dirs))
     if tree.diagnostics:
         raise ValueError(f"parse errors in {path}: {list(tree.diagnostics)}")
-    kind = next(m.kind for m in tree.root.members if hasattr(m, "header") or hasattr(m, "members"))
+    kind = next(
+        m.kind
+        for m in tree.root.members
+        if hasattr(m, "header") or hasattr(m, "members") or m.kind == pyslang.syntax.SyntaxKind.ClassDeclaration
+    )
+    if kind == pyslang.syntax.SyntaxKind.ClassDeclaration:
+        return parse_class(path, include_dirs)
     if kind == pyslang.syntax.SyntaxKind.InterfaceDeclaration:
         return parse_interface(path, include_dirs)
     if kind == pyslang.syntax.SyntaxKind.PackageDeclaration:
@@ -538,6 +546,8 @@ def parse_package(path: str, include_dirs: list | None = None) -> PackageDoc:
             doc.subroutines.append(_parse_subroutine(m, "function"))
         elif m.kind == pyslang.syntax.SyntaxKind.TaskDeclaration:
             doc.subroutines.append(_parse_subroutine(m, "task"))
+        elif m.kind == pyslang.syntax.SyntaxKind.ClassDeclaration:
+            doc.classes.append(_parse_class_node(m))
         elif m.kind == pyslang.syntax.SyntaxKind.TypedefDeclaration:
             if m.type.kind == pyslang.syntax.SyntaxKind.EnumType:
                 doc.typedefs.append(
@@ -569,3 +579,97 @@ def parse_package(path: str, include_dirs: list | None = None) -> PackageDoc:
                 )
 
     return doc
+
+
+def _class_leading_doc(node) -> str | None:
+    """Like :func:`_leading_doc` but ignores ``///<`` comments, which belong
+    to the *previous* item (see :func:`_trailing_doc`)."""
+    doc = None
+    for t in node.getFirstToken().trivia:
+        if t.kind in _DOC_KINDS and not t.getRawText().startswith("///<"):
+            doc = t.getRawText()
+    return _clean(doc) if doc else None
+
+
+def _parse_class_params(cls) -> list:
+    if not cls.parameters:
+        return []
+    sk = pyslang.syntax.SyntaxKind
+    decls = [d for d in cls.parameters.declarations if d.kind in (sk.ParameterDeclaration, sk.TypeParameterDeclaration)]
+    params = []
+    for i, d in enumerate(decls):
+        next_node = decls[i + 1] if i + 1 < len(decls) else cls.parameters.closeParen
+        dr = d.declarators[0]
+        if d.kind == sk.TypeParameterDeclaration:
+            ptype = "type"
+            init = dr.assignment.type if dr.assignment else None
+        else:
+            ptype = _type_str(d.type)
+            init = dr.initializer.expr if dr.initializer else None
+        params.append(
+            Param(
+                name=dr.name.valueText,
+                type=ptype,
+                default=_type_str(init) if init is not None else None,
+                doc=_trailing_doc(next_node),
+            )
+        )
+    return params
+
+
+def _parse_class_node(cls) -> ClassDoc:
+    sk = pyslang.syntax.SyntaxKind
+    doc = ClassDoc(
+        name=cls.name.valueText,
+        doc=_class_leading_doc(cls),
+        extends=_type_str(cls.extendsClause.baseName) if cls.extendsClause else None,
+        is_virtual=cls.virtualOrInterface is not None and cls.virtualOrInterface.valueText == "virtual",
+        params=_parse_class_params(cls),
+    )
+    items = list(cls.items)
+    for i, m in enumerate(items):
+        next_node = items[i + 1] if i + 1 < len(items) else cls.endClass
+        quals = [q.valueText for q in m.qualifiers] if hasattr(m, "qualifiers") else []
+        if m.kind == sk.ClassPropertyDeclaration and m.declaration.kind == sk.DataDeclaration:
+            d = m.declaration
+            # trailing ///< on the next item wins, else the item's own leading doc
+            pdoc = _trailing_doc(next_node) or _class_leading_doc(m)
+            for dr in d.declarators:
+                doc.properties.append(
+                    ClassProperty(name=dr.name.valueText, type=_type_str(d.type), doc=pdoc, qualifiers=quals)
+                )
+        elif m.kind == sk.ClassMethodDeclaration:
+            d = m.declaration
+            sub = _parse_subroutine(d, "function" if d.kind == sk.FunctionDeclaration else "task")
+            sub.doc = _class_leading_doc(m)
+            sub.qualifiers = quals
+            doc.methods.append(sub)
+        elif m.kind == sk.ClassMethodPrototype:
+            p = m.prototype
+            kind = "function" if p.keyword.valueText == "function" else "task"
+            doc.methods.append(
+                Subroutine(
+                    name=str(p.name).strip(),
+                    doc=_class_leading_doc(m),
+                    kind=kind,
+                    return_type=_type_str(p.returnType) if kind == "function" else None,
+                    args=_parse_subroutine_args(p.portList),
+                    qualifiers=quals,
+                )
+            )
+    return doc
+
+
+def parse_class(path: str, include_dirs: list | None = None) -> ClassDoc:
+    """Parse a ``.sv`` file whose first top-level declaration is a class.
+
+    :param path: Path to the ``.sv`` file. Only the first class is parsed.
+    :param include_dirs: Optional ```include`` search directories.
+    :returns: The class's :class:`~svdoc.ir.ClassDoc` (parameters, properties,
+        methods, base class).
+    :raises ValueError: If the file fails to parse cleanly.
+    """
+    tree = pyslang.syntax.SyntaxTree.fromFile(path, _source_manager(include_dirs))
+    if tree.diagnostics:
+        raise ValueError(f"parse errors in {path}: {list(tree.diagnostics)}")
+    return _parse_class_node(_find_declaration(tree, pyslang.syntax.SyntaxKind.ClassDeclaration))

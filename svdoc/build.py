@@ -9,7 +9,7 @@ import re
 from html import escape
 
 from . import render_html, render_md
-from .ir import InterfaceDoc, ModuleDoc, PackageDoc
+from .ir import ClassDoc, InterfaceDoc, ModuleDoc, PackageDoc
 from .parser import parse_file, resolve_types
 
 _UNSAFE_NAME_CHARS = re.compile(r"[^\w.-]")
@@ -26,16 +26,19 @@ _RENDERERS = {
     ModuleDoc: render_html.render,
     InterfaceDoc: render_html.render_interface,
     PackageDoc: render_html.render_package,
+    ClassDoc: render_html.render_class,
 }
 _MD_RENDERERS = {
     ModuleDoc: render_md.render,
     InterfaceDoc: render_md.render_interface,
     PackageDoc: render_md.render_package,
+    ClassDoc: render_md.render_class,
 }
 _KIND_LABELS = {
     ModuleDoc: "Module",
     InterfaceDoc: "Interface",
     PackageDoc: "Package",
+    ClassDoc: "Class",
 }
 
 
@@ -82,7 +85,15 @@ def build_site(paths: list, out_dir: str, include_dirs: list | None = None, fmt:
         page_name = f"{_safe_page_name(doc.name)}.html"
         (out / page_name).write_text(_RENDERERS[type(doc)](doc))
         label = _KIND_LABELS[type(doc)]
-        index_lines.append(f'<li>{label}: <a href="{escape(page_name)}">{escape(doc.name)}</a></li>')
+        index_lines.append(f'<li>{label}: <a href="{escape(page_name)}">{escape(doc.name)}</a>')
+        if isinstance(doc, PackageDoc) and doc.classes:
+            index_lines.append("<ul>")
+            for c in doc.classes:
+                index_lines.append(
+                    f'<li>Class: <a href="{escape(page_name)}#{escape(c.name)}">{escape(c.name)}</a></li>'
+                )
+            index_lines.append("</ul>")
+        index_lines.append("</li>")
     index_lines.append("</ul>")
 
     index_html = render_html.page("svdoc site", index_lines)

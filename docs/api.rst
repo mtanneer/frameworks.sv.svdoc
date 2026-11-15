@@ -11,19 +11,19 @@ Parser
 ------
 
 .. automodule:: svdoc.parser
-   :members: parse_module, parse_interface, parse_package, parse_file, resolve_types
+   :members: parse_module, parse_interface, parse_package, parse_class, parse_file, resolve_types
 
 Markdown renderer
 -----------------
 
 .. automodule:: svdoc.render_md
-   :members: render, render_interface, render_package
+   :members: render, render_interface, render_package, render_class
 
 HTML renderer
 -------------
 
 .. automodule:: svdoc.render_html
-   :members: render, render_interface, render_package, page
+   :members: render, render_interface, render_package, render_class, page
 
 Fixer
 -----

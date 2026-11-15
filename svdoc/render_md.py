@@ -1,6 +1,6 @@
 """Markdown renderer: Doc IR -> Obsidian-friendly .md string."""
 
-from .ir import InterfaceDoc, ModuleDoc, PackageDoc
+from .ir import ClassDoc, InterfaceDoc, ModuleDoc, PackageDoc
 
 
 def _type_cell(type_str: str, type_ref: str) -> str:
@@ -124,4 +124,48 @@ def render_package(pkg: PackageDoc) -> str:
                 lines.append(f"| `{a.name}` | {a.direction} | `{a.type}` | {a.doc or ''} |")
             lines.append("")
 
+    for c in pkg.classes:
+        label = "Virtual class" if c.is_virtual else "Class"
+        lines += [f"## {label} `{c.name}`", ""] + _class_body(c, "###")
+
     return "\n".join(lines)
+
+
+def _class_body(c: ClassDoc, level: str) -> list:
+    """Shared body for a class, used by both the standalone page and package
+    sections. ``level`` is the heading prefix for the class's sub-sections."""
+    lines = []
+    if c.doc:
+        lines += [c.doc, ""]
+    if c.extends:
+        lines += [f"Extends `{c.extends}`", ""]
+    for sec in _params_section(c.params):
+        lines.append(sec.replace("## ", f"{level} ", 1) if sec.startswith("## ") else sec)
+    if c.properties:
+        lines += [f"{level} Properties", "", "| Name | Type | Qualifiers | Description |", "|---|---|---|---|"]
+        for p in c.properties:
+            lines.append(f"| `{p.name}` | `{p.type}` | {' '.join(p.qualifiers)} | {p.doc or ''} |")
+        lines.append("")
+    if c.methods:
+        lines += [f"{level} Methods", ""]
+        for s in c.methods:
+            quals = " ".join(s.qualifiers)
+            kind = f"function returning `{s.return_type}`" if s.kind == "function" and s.return_type else s.kind
+            lines.append(f"{level}# `{s.name}`")
+            lines.append("")
+            if s.doc:
+                lines += [s.doc, ""]
+            head = f"{quals + ' ' if quals else ''}{kind}"
+            lines += [head[0].upper() + head[1:], ""]
+            if s.args:
+                lines += ["| Name | Direction | Type | Description |", "|---|---|---|---|"]
+                for a in s.args:
+                    lines.append(f"| `{a.name}` | {a.direction} | `{a.type}` | {a.doc or ''} |")
+                lines.append("")
+    return lines
+
+
+def render_class(c: ClassDoc) -> str:
+    """Render a :class:`~svdoc.ir.ClassDoc` to an Obsidian-friendly Markdown string."""
+    label = "Virtual class" if c.is_virtual else "Class"
+    return "\n".join([f"# {label}: `{c.name}`", ""] + _class_body(c, "##"))
